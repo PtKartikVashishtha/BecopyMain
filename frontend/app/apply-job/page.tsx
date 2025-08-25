@@ -84,7 +84,7 @@ export default function ApplyJobPage() {
     <div className="min-h-screen bg-[#F5F5F5] flex flex-col">
       <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
       
-      <div className="flex-1 pt-16 sm:pt-20">
+      <div className="flex-1 pt-16 sm:pt-13">
         <div className="max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
           {/* Page Header */}
           <div className="mb-3 sm:mb-4">
@@ -140,7 +140,7 @@ export default function ApplyJobPage() {
                       setErrors({...errors, coverLetter: ""});
                     }}
                     placeholder="Briefly explain why you're a good fit for this role..."
-                    rows={isMobile ? 4 : 6}
+                    rows={isMobile ? 4 : 4}
                     className={`w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-900 placeholder-gray-500 text-sm ${
                       errors.coverLetter ? "border-red-500" : ""
                     }`}
@@ -153,7 +153,7 @@ export default function ApplyJobPage() {
 
                 {/* Resume Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Upload Resume
                   </label>
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-blue-400 transition-colors bg-gray-50">
@@ -170,8 +170,8 @@ export default function ApplyJobPage() {
                         htmlFor="resume-upload"
                         className="cursor-pointer flex flex-col items-center space-y-2 sm:space-y-3"
                       >
-                        <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center shadow-sm">
-                          <Upload className="w-6 h-6 sm:w-7 sm:h-7 text-gray-400" />
+                        <div className="w-12 h-12 sm:w-7 sm:h-7 bg-white rounded-full flex items-center justify-center shadow-sm">
+                          <Upload className="w-6 h-6 sm:w-3 sm:h-3 text-gray-400" />
                         </div>
                         <div className="text-gray-600">
                           <span className="text-gray-800 font-medium text-sm sm:text-base">

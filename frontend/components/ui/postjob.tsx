@@ -4,45 +4,49 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { X, ChevronDown, Calendar } from "lucide-react";
+import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Highlight, themes } from "prism-react-renderer";
+import Editor from "react-simple-code-editor";
 
-interface PostJobProps {
+interface AddCodeProps {
   onClose?: () => void;
 }
 
-export default function PostJob({ onClose }: PostJobProps) {
+export default function AddCode({ onClose }: AddCodeProps) {
   const router = useRouter();
   const [formData, setFormData] = useState({
     title: "",
-    company: "",
-    location: "",
     description: "",
-    responsibilities: "",
-    requirements: "",
-    salary: "",
-    country: "",
-    applyBefore: "",
-    howToApply: "",
+    javaCode: "",
+    pythonCode: "",
+    htmlCode: "",
+    isAnonymous: false,
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setErrors({ ...errors, [e.target.name]: "" });
   };
 
+  const handleCodeChange = (field: string, value: string) => {
+    setFormData({ ...formData, [field]: value });
+    setErrors({ ...errors, [field]: "" });
+  };
+
   const validate = () => {
     let tempErrors: { [key: string]: string } = {};
-    if (!formData.title) tempErrors.title = "Job title is required";
-    if (!formData.company) tempErrors.company = "Company is required";
-    if (!formData.description) tempErrors.description = "Job description is required";
-    if (!formData.applyBefore) tempErrors.applyBefore = "Apply before date is required";
-    if (!formData.howToApply) tempErrors.howToApply = "How to apply is required";
+    if (!formData.title.trim()) tempErrors.title = "Title is required";
+    if (!formData.description.trim()) tempErrors.description = "Description is required";
+    
+    const hasCode = formData.javaCode.trim() || formData.pythonCode.trim() || formData.htmlCode.trim();
+    if (!hasCode) tempErrors.code = "At least one code section is required";
+    
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
   };
@@ -54,9 +58,26 @@ export default function PostJob({ onClose }: PostJobProps) {
     setIsSubmitting(true);
 
     try {
-      console.log("Job posting data:", formData);
+      const programData = {
+        name: formData.title,
+        description: formData.description,
+        code: {
+          java: formData.javaCode,
+          python: formData.pythonCode,
+          html: formData.htmlCode,
+        },
+        copies: 0,
+        bugfixes: 0,
+        suggestions: 0,
+        views: 0,
+        featureRank: 0,
+        isFeatured: false,
+        isAnonymous: formData.isAnonymous
+      };
+
+      console.log("Code submission data:", programData);
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      alert("Job posted successfully!");
+      alert("Code submitted successfully!");
       
       if (onClose) {
         onClose();
@@ -64,16 +85,16 @@ export default function PostJob({ onClose }: PostJobProps) {
         router.back();
       }
     } catch (error) {
-      console.error("Error posting job:", error);
-      alert("Error posting job. Please try again.");
+      console.error("Error submitting code:", error);
+      alert("Error submitting code. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleSave = async () => {
-    console.log("Job saved as draft:", formData);
-    alert("Job saved as draft!");
+    console.log("Code saved as draft:", formData);
+    alert("Code saved as draft!");
   };
 
   const handleClose = () => {
@@ -84,11 +105,27 @@ export default function PostJob({ onClose }: PostJobProps) {
     }
   };
 
+  const highlightCode = (code: string, language: string) => (
+    <Highlight theme={themes.oneLight} code={code} language={language}>
+      {({ tokens, getLineProps, getTokenProps }) => (
+        <>
+          {tokens.map((line, i) => (
+            <div key={i} {...getLineProps({ line })}>
+              {line.map((token, key) => (
+                <span key={key} {...getTokenProps({ token })} />
+              ))}
+            </div>
+          ))}
+        </>
+      )}
+    </Highlight>
+  );
+
   return (
     <div className="fixed inset-0 bg-white flex flex-col h-screen overflow-hidden">
-      {/* Header */}
+      {/* Header - Copied from PostJob */}
       <div className="flex items-center justify-between p-6 border-b border-gray-200">
-        <h1 className="text-2xl font-semibold text-gray-900">Post a Job</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Add Code</h1>
         <button
           onClick={handleClose}
           className="p-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -102,28 +139,18 @@ export default function PostJob({ onClose }: PostJobProps) {
       <div className="flex-1 overflow-y-auto">
         <form onSubmit={handleSubmit} className="p-6">
           <div className="space-y-6">
-            {/* Job Title and Company */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Input
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  placeholder="Job Title *"
-                  className="h-12 text-base border-gray-300 focus:ring-2 focus:ring-blue-500"
-                />
-                {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
-              </div>
-              <div>
-                <Input
-                  name="company"
-                  value={formData.company}
-                  onChange={handleInputChange}
-                  placeholder="Company *"
-                  className="h-12 text-base border-gray-300 focus:ring-2 focus:ring-blue-500"
-                />
-                {errors.company && <p className="text-red-500 text-sm mt-1">{errors.company}</p>}
-              </div>
+            {/* Title */}
+            <div>
+              <Input
+                name="title"
+                value={formData.title}
+                onChange={handleInputChange}
+                placeholder="Title"
+                maxLength={200}
+                className="h-12 text-base border-gray-300 focus:ring-2 focus:ring-blue-500"
+                style={{ color: 'gray', fontSize: '13px' }}
+              />
+              {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
             </div>
 
             {/* Description */}
@@ -133,101 +160,99 @@ export default function PostJob({ onClose }: PostJobProps) {
                 value={formData.description}
                 onChange={handleInputChange}
                 placeholder="Description"
-                rows={4}
+                rows={2}
+                maxLength={5000}
                 className="text-base border-gray-300 focus:ring-2 focus:ring-blue-500 resize-none"
+                style={{ color: 'gray', fontSize: '13px' }}
               />
               {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
             </div>
 
-            {/* Responsibilities and Requirements */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Textarea
-                  name="responsibilities"
-                  value={formData.responsibilities}
-                  onChange={handleInputChange}
-                  placeholder="Responsibilities"
-                  rows={4}
-                  className="text-base border-gray-300 focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
-              <div>
-                <Textarea
-                  name="requirements"
-                  value={formData.requirements}
-                  onChange={handleInputChange}
-                  placeholder="Requirements"
-                  rows={4}
-                  className="text-base border-gray-300 focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
-            </div>
-
-            {/* Country and Salary */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative">
-                <select
-                  name="country"
-                  value={formData.country}
-                  onChange={handleInputChange}
-                  className="w-full h-12 p-3 text-base border border-gray-300 rounded-lg appearance-none bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
-                >
-                  <option value="">Select Country</option>
-                  <option value="India">India</option>
-                  <option value="USA">USA</option>
-                  <option value="UK">UK</option>
-                  <option value="Canada">Canada</option>
-                  <option value="Australia">Australia</option>
-                  <option value="Germany">Germany</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
-              </div>
-              <div>
-                <Input
-                  name="salary"
-                  value={formData.salary}
-                  onChange={handleInputChange}
-                  placeholder="Salary"
-                  className="h-12 text-base border-gray-300 focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Apply Before */}
+            {/* Java Code Editor */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Apply Before
+              <div className="rounded-md border bg-muted">
+                <Editor
+                  className="text-sm"
+                  value={formData.javaCode}
+                  onValueChange={(code) => handleCodeChange('javaCode', code)}
+                  highlight={(code) => highlightCode(code, "java")}
+                  padding={15}
+                  style={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: "14px",
+                    backgroundColor: "white",
+                    minHeight: "100px",
+                    outline: "none"
+                  }}
+                  placeholder="Enter Java code here..."
+                />
+              </div>
+            </div>
+
+            {/* Python Code Editor */}
+            <div>
+              <div className="rounded-md border bg-muted">
+                <Editor
+                  value={formData.pythonCode}
+                  onValueChange={(code) => handleCodeChange('pythonCode', code)}
+                  highlight={(code) => highlightCode(code, "python")}
+                  padding={15}
+                  className="text-sm"
+                  style={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: "14px",
+                    backgroundColor: "white",
+                    minHeight: "100px",
+                    outline: "none"
+                  }}
+                  placeholder="Enter Python code here..."
+                />
+              </div>
+            </div>
+
+            {/* HTML Code Editor */}
+            <div>
+              <div className="rounded-md border bg-muted">
+                <Editor
+                  value={formData.htmlCode}
+                  onValueChange={(code) => handleCodeChange('htmlCode', code)}
+                  highlight={(code) => highlightCode(code, "html")}
+                  padding={15}
+                  style={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontSize: "14px",
+                    backgroundColor: "white",
+                    minHeight: "100px",
+                    outline: "none"
+                  }}
+                  placeholder="Enter HTML code here..."
+                />
+              </div>
+            </div>
+
+            {/* Anonymous Toggle */}
+            <div className="flex items-center space-x-3">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.isAnonymous}
+                  onChange={(e) => setFormData({ ...formData, isAnonymous: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               </label>
-              <div className="relative">
-                <Input
-                  type="date"
-                  name="applyBefore"
-                  value={formData.applyBefore}
-                  onChange={handleInputChange}
-                  placeholder="Select a date"
-                  className="h-12 text-base border-gray-300 focus:ring-2 focus:ring-blue-500 pl-4"
-                />
-              </div>
-              {errors.applyBefore && <p className="text-red-500 text-sm mt-1">{errors.applyBefore}</p>}
+              <span className="text-sm text-gray-700">
+                Do you want your name to be publicly shown with the submitted code on the BeCopy website?
+              </span>
             </div>
 
-            {/* How to Apply */}
-            <div>
-              <Textarea
-                name="howToApply"
-                value={formData.howToApply}
-                onChange={handleInputChange}
-                placeholder="How to Apply"
-                rows={4}
-                className="text-base border-gray-300 focus:ring-2 focus:ring-blue-500 resize-none"
-              />
-              {errors.howToApply && <p className="text-red-500 text-sm mt-1">{errors.howToApply}</p>}
-            </div>
+            {/* Error Messages */}
+            {errors.code && <p className="text-red-500 text-sm">{errors.code}</p>}
           </div>
         </form>
       </div>
 
-      {/* Footer Buttons */}
+      {/* Footer Buttons - Copied from PostJob */}
       <div className="flex space-x-4 p-6 border-t border-gray-200 bg-white">
         <Button
           type="button"
