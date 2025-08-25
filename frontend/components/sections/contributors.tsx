@@ -97,16 +97,16 @@ const Contributors = () => {
     }, [selectedCountry, controls]);
 
   return (
-    <div className="bg-white rounded-lg px-2 py-1 w-full relative" 
+    <div className="bg-white rounded-lg px-2 py-1 w-full relative border border-gray-200" 
          style={{ 
            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 8px 0 15px -3px rgba(0, 0, 0, 0.1), 8px 0 6px -2px rgba(0, 0, 0, 0.05)' 
          }}>
       <div className="flex justify-between items-center mb-1">
-        <h3  className="font-semibold">Top Code Contributors</h3 >
+        <h3 className="font-semibold text-gray-900">Top Code Contributors</h3>
         <select
           value={selectedCountry}
           onChange={(e) => setSelectedCountry(e.target.value)}
-          className="px-3 text-sm rounded-md border outline-none"
+          className="px-3 text-sm rounded-md border border-gray-300 outline-none bg-white text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
         >
           {countries.map((country) => (
             <option key={country} value={country}>

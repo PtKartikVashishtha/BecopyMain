@@ -153,14 +153,14 @@ const FeedbackDialog = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white bg-opacity-75">
       <motion.div
         drag
         dragConstraints={{ left: -1000, right: 1000, top: -1000, bottom: 1000 }}
-        className="relative bg-white rounded-lg shadow-lg w-[600px] h-[700px]"
+        className="relative bg-white rounded-lg shadow-lg w-[600px] h-[700px] border border-gray-200"
       >
         <button
-          className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+          className="absolute top-2 right-2 text-gray-600 hover:text-gray-800"
           onClick={handleClose}
         >
           <X className="h-5 w-5" />
@@ -168,7 +168,7 @@ const FeedbackDialog = ({
 
         <Card className="h-full flex flex-col border-none shadow-none overflow-hidden">
           <CardHeader className="cursor-move">
-            <CardTitle>
+            <CardTitle className="text-gray-900">
               {type === "bug" ? "Report a Bug" : "Suggest Improvement"}
             </CardTitle>
           </CardHeader>
@@ -186,7 +186,7 @@ const FeedbackDialog = ({
                   rows={2}
                   maxLength={5000}
                   required
-                  className="outline-none focus-visible:ring-offset-0 focus-visible:ring-0 max-h-[100px] overflow-auto resize-none"
+                  className="outline-none focus-visible:ring-offset-0 focus-visible:ring-0 max-h-[100px] overflow-auto resize-none text-gray-900 bg-white border-gray-300"
                 />
               </div>
               {[
@@ -195,7 +195,7 @@ const FeedbackDialog = ({
                 { label: "HTML Code", value: htmlcode, setValue: setHtmlcode, lang: "html" },
               ].map(({ label, value, setValue, lang }, idx) => (
                 <div key={idx}>
-                  <div className="rounded-md border bg-muted">
+                  <div className="rounded-md border border-gray-300 bg-white">
                     <Editor
                       value={value}
                       onValueChange={setValue}
@@ -206,6 +206,7 @@ const FeedbackDialog = ({
                         fontFamily: '"JetBrains Mono", monospace',
                         fontSize: "14px",
                         backgroundColor: "white",
+                        color: "#1f2937",
                         minHeight: "100px",
                         outline: "none",
                       }}
@@ -220,7 +221,7 @@ const FeedbackDialog = ({
               <div className="flex space-x-4 pb-4">
                 <Button
                   type="submit"
-                  className="w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF]"
+                  className="w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF] text-white"
                   size="sm"
                   disabled={loading}
                   name="submitType"
@@ -231,7 +232,7 @@ const FeedbackDialog = ({
                 </Button>
                 <Button
                   type="submit"
-                  className="w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF]"
+                  className="w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF] text-white"
                   size="sm"
                   disabled={loading}
                   name="submitType"
