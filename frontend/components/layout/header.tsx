@@ -128,7 +128,7 @@ const Header = ({
         {settings?.isAddCode && (
           <>
             <button
-              onClick={handleAddCodeClick}
+              onClick={() => router.push("/add-code")}
               className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer"
             >
               Add Code
@@ -150,7 +150,7 @@ const Header = ({
         {settings?.isPostJob && (
           <>
             <button
-              onClick={handleJobPosting}
+              onClick={() => router.push("/post-job")}
               className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer"
             >
               Post Job
@@ -161,7 +161,7 @@ const Header = ({
         {settings?.isApplyJob && (
           <>
             <button
-              onClick={handleApplyJob}
+              onClick={() => router.push("/apply-job")}
               className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer"
             >
               Apply Job

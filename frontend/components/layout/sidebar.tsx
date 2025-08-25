@@ -211,7 +211,7 @@ const Sidebar = ({
         {settings?.isApplyJob && (
           <li>
             <button
-              onClick={handleApplyJobClick}
+              onClick={() => handleNavigation("/apply-job")}
               style={{ color: "rgb(2 132 218)" }}
               className="w-full font-medium text-sm p-1 rounded-lg text-left hover:bg-blue-50 transition-colors"
             >
@@ -223,7 +223,7 @@ const Sidebar = ({
         {settings?.isPostJob && (
           <li>
             <button
-              onClick={handlePostJobClick}
+              onClick={() => handleNavigation("/post-job")}
               style={{ color: "rgb(2 132 218)" }}
               className="w-full font-medium text-sm p-1 rounded-lg text-left hover:bg-blue-50 transition-colors"
             >
