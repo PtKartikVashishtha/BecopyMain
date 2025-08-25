@@ -259,9 +259,111 @@ exports.logout = async (req, res) => {
   });
 };
 
+// exports.register = async (req, res) => {
+//   try {
+//     const { companyName,
+//       companyWebsite,
+//       confirmPassword,
+//       country,
+//       description,
+//       email,
+//       name,
+//       password,
+//       phoneNumber,
+//       profileLink,
+//       userType } = req.body;
+
+//     if (!name || !email || !password || !userType || !country) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'All required fields must be provided'
+//       });
+//     }
+
+//     // Validate LinkedIn URL if provided
+//     if (profileLink) {
+//       let isValidLinkedin = validateLinkedInUrl(profileLink);
+//       if (!isValidLinkedin) {
+//         return res.status(400).json({
+//           success: false,
+//           error: 'Invalid LinkedIn URL'
+//         });
+//       }
+//     }
+
+//     const existingUser = await User.findOne({ email });
+//     if (existingUser) {
+//       return res.status(400).json({
+//         success: false,
+//         error: 'User already exists'
+//       });
+//     }
+
+//     let hashedPassword = await bcrypt.hash(password, 10);
+//     console.log('hashedPassword', hashedPassword);
+
+//     const user = await User.create({
+//       name,
+//       email,
+//       password: hashedPassword,
+//       userType,
+//       country
+//     });
+
+//     if (userType === 'recruiter') {
+//       if (!companyName || !phoneNumber || !description) {
+//         return res.status(400).json({
+//           success: false,
+//           message: 'All recruiter fields are required'
+//         });
+//       }
+
+//       const recruiter = await Recruiter.create({
+//         userId: user._id,
+//         companyName,
+//         companyWebsite, // Fixed typo from 'comapanyWebsite'
+//         country,
+//         description,
+//         email,
+//         name,
+//         phoneNumber,
+//         profileLink,
+//       });
+
+//       return res.status(201).json({
+//         success: true,
+//         data: recruiter,
+//         user: user,
+//       });
+//     } else {
+//       const contributor = await Contributor.create({
+//         userId: user._id,
+//         email,
+//         name,
+//         country,
+//         phoneNumber,
+//         profileLink,
+//       });
+
+//       return res.status(201).json({
+//         success: true,
+//         data: contributor,
+//         user: user
+//       });
+//     }
+//   } catch (error) {
+//     console.log(error);
+//     return res.status(500).json({
+//       success: false,
+//       error: error.message
+//     });
+//   }
+// };
+
 exports.register = async (req, res) => {
   try {
-    const { companyName,
+    const { 
+      companyName,
       companyWebsite,
       confirmPassword,
       country,
@@ -271,37 +373,51 @@ exports.register = async (req, res) => {
       password,
       phoneNumber,
       profileLink,
-      userType } = req.body;
+      userType 
+    } = req.body;
 
+    console.log('Received registration data:', req.body);
+
+    // Validate basic required fields for both user types
     if (!name || !email || !password || !userType || !country) {
       return res.status(400).json({
         success: false,
-        message: 'All required fields must be provided'
+        error: 'Name, email, password, userType, and country are required'
       });
     }
 
-    // Validate LinkedIn URL if provided
-    if (profileLink) {
-      let isValidLinkedin = validateLinkedInUrl(profileLink);
-      if (!isValidLinkedin) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid LinkedIn URL'
-        });
-      }
+    // Validate password confirmation
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password and confirm password do not match'
+      });
     }
 
+    // Validate LinkedIn URL if provided (skip hardcoded placeholder URLs)
+    if (profileLink && 
+        profileLink !== "https://contributor.me" && 
+        profileLink !== "https://recruiter.profile.com" && 
+        !validateLinkedInUrl(profileLink)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid LinkedIn URL'
+      });
+    }
+
+    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        error: 'User already exists'
+        error: 'User already exists with this email'
       });
     }
 
-    let hashedPassword = await bcrypt.hash(password, 10);
-    console.log('hashedPassword', hashedPassword);
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Create user
     const user = await User.create({
       name,
       email,
@@ -311,55 +427,77 @@ exports.register = async (req, res) => {
     });
 
     if (userType === 'recruiter') {
-      if (!companyName || !phoneNumber || !description) {
+      // For recruiters, validate actual required fields (not hardcoded ones)
+      if (!companyName || companyName === "Update your Name" ||
+          !phoneNumber || phoneNumber === "Update your Phone Number" ||
+          !description || description === "Description") {
+        // Clean up - delete the user if recruiter creation fails
+        await User.findByIdAndDelete(user._id);
         return res.status(400).json({
           success: false,
-          message: 'All recruiter fields are required'
+          error: 'Please provide valid company name, phone number, and description for recruiter registration'
         });
       }
 
       const recruiter = await Recruiter.create({
         userId: user._id,
+        name,
+        email,
         companyName,
-        companyWebsite, // Fixed typo from 'comapanyWebsite'
+        companyWebSite: companyWebsite === "Update your Company Website" ? "https://mycompany.com" : companyWebsite,
         country,
         description,
-        email,
-        name,
         phoneNumber,
-        profileLink,
+        profileLink: profileLink || "https://recruiter.profile.com"
       });
 
       return res.status(201).json({
         success: true,
+        message: 'Recruiter registered successfully',
         data: recruiter,
-        user: user,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          userType: user.userType,
+          country: user.country,
+          isEmailVerified: user.isEmailVerified
+        }
       });
+
     } else {
+      // For users, allow hardcoded values and create contributor
       const contributor = await Contributor.create({
         userId: user._id,
-        email,
         name,
+        email,
         country,
-        phoneNumber,
-        profileLink,
+        profileLink: profileLink || "https://contributor.me"
       });
 
       return res.status(201).json({
         success: true,
+        message: 'User registered successfully',
         data: contributor,
-        user: user
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          userType: user.userType,
+          country: user.country,
+          isEmailVerified: user.isEmailVerified
+        }
       });
     }
+
   } catch (error) {
-    console.log(error);
+    console.error('Registration error:', error);
     return res.status(500).json({
       success: false,
-      error: error.message
+      error: 'Internal server error: ' + error.message
     });
   }
 };
-
 exports.sendResetCode = async (req, res) => {
   try {
     let { email } = req.body;
