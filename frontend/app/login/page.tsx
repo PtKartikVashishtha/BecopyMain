@@ -56,12 +56,11 @@ function validateLinkedInUrl(url: string): boolean {
 
 export default function LoginPage(props: any) {
   const router = useRouter();
-
   let dispatch = useAppDispatch();
   const isMobile = useMediaQuery({ maxWidth: 768 });
 
   const [mode, setMode] = useState<AuthMode>("login");
-  const [userType, setUserType] = useState<UserType>(props.type);
+  const [userType, setUserType] = useState<UserType>("user"); // default value
   const [country, setCountry] = useState<Country>("UK");
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
@@ -97,60 +96,37 @@ export default function LoginPage(props: any) {
 
     try {
       if (mode === "register") {
-        if (
-          fromAddCode === "true" ||
-          fromApplyJob === "true" ||
-          fromAddContribution === "true"
-        ) {
-          setLoading(true);
-        }
-
         let isValidLinkedin = validateLinkedInUrl(formData.profileLink);
         if (!isValidLinkedin) return setValidLinkedin(isValidLinkedin);
-        //Fix: proper payload object
+
         const registerPayload = {
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        confirmPassword: formData.confirmPassword,
-        profileLink: formData.profileLink,
-        companyName: "Upade your Name",
-        companyWebsite: "Update your Company Website", // Note: backend expects "comapanyWebsite"
-        phoneNumber: "Update your Phone Number",
-        description: "Description",
-        userType: userType, // Use the state variable, which is "user" | "recruiter"
-        country: country,   // From state, not formData.country
-      };
-      console.log("Sending payload:",registerPayload) //for debugging
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          confirmPassword: formData.confirmPassword,
+          profileLink: formData.profileLink,
+          companyName: formData.companyName || "",
+          companyWebsite: formData.companyWebsite || "",
+          phoneNumber: formData.phoneNumber || "",
+          description: formData.description || "",
+          userType: userType, // ✅ from dropdown
+          country: country,   // ✅ from state
+        };
+
+        console.log("Sending payload:", registerPayload);
+
         const { data, user, success } = await authService.register(
           registerPayload
         );
 
         if (success) {
-          if (fromApplyJob === "true") {
-            await applyJob(user._id);
-          }
-          if (fromAddCode === "true") {
-            await addCode(user._id);
-          }
-
+          if (fromApplyJob === "true") await applyJob(user._id);
+          if (fromAddCode === "true") await addCode(user._id);
           if (fromAddContribution === "true") {
             await submitContributions(user.email, dispatch);
           }
 
-          if (
-            fromAddCode == "true" ||
-            fromApplyJob == "true" ||
-            fromAddContribution === "true"
-          ) {
-            if (!user?.isEmailVerified) {
-              setTimeout(() => {
-                return router.push(`/verifyEmail?email=${user.email}`);
-              }, 3000);
-            }
-          } else {
-            return router.push(`/verifyEmail?email=${user.email}`);
-          }
+          return router.push(`/verifyEmail?email=${user.email}`);
         }
       } else {
         const data = await authService.login({
@@ -158,26 +134,14 @@ export default function LoginPage(props: any) {
           password: formData.password,
           userType,
         });
-        if (
-          fromAddCode === "true" ||
-          fromApplyJob === "true" ||
-          fromAddContribution === "true"
-        ) {
-          setLoading(true);
-        }
 
-        if (fromApplyJob === "true") {
-          await applyJob(data.user.id);
-        }
-        if (fromAddCode === "true") {
-          await addCode(data.user.id);
-        }
+        if (fromApplyJob === "true") await applyJob(data.user.id);
+        if (fromAddCode === "true") await addCode(data.user.id);
         if (fromAddContribution === "true") {
           await submitContributions(data.user.email, dispatch);
         }
 
-        if (data.user.isEmailVerified !== true) {
-          setLoading(false);
+        if (!data.user.isEmailVerified) {
           return router.push(`/verifyEmail?email=${data.user.email}`);
         }
 
@@ -185,17 +149,6 @@ export default function LoginPage(props: any) {
           localStorage.setItem("token", data.token);
           localStorage.setItem("userData", JSON.stringify(data.user));
           localStorage.setItem("userType", userType);
-
-          if (
-            fromAddCode === "true" ||
-            fromApplyJob === "true" ||
-            fromAddContribution === "true"
-          ) {
-            setTimeout(() => {
-              return (window.location.href = "/");
-            }, 3000);
-          }
-
           window.location.href = "/";
         }
       }
@@ -205,10 +158,6 @@ export default function LoginPage(props: any) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const gotoResetPass = () => {
-    router.push("/forgotPass");
   };
 
   const changeProfileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,15 +188,12 @@ export default function LoginPage(props: any) {
         <Sidebar
           isSidebarOpen={isSidebarOpen}
           onSelectProgram={onSelectProgram}
-          onCloseSidebar={() => {
-            setIsSidebarOpen(false);
-          } } expandedCategories={[]} toggleCategory={function (name: string): void {
-            throw new Error("Function not implemented.");
-          } } onShowJobPosting={function (): void {
-            throw new Error("Function not implemented.");
-          } } onShowApplyJob={function (): void {
-            throw new Error("Function not implemented.");
-          } }        />
+          onCloseSidebar={() => setIsSidebarOpen(false)}
+          expandedCategories={[]}
+          toggleCategory={() => {}}
+          onShowJobPosting={() => {}}
+          onShowApplyJob={() => {}}
+        />
       )}
 
       <div className="flex min-h-screen w-full items-center justify-center p-6 md:p-10">
@@ -260,29 +206,31 @@ export default function LoginPage(props: any) {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* <Select
-                value={userType}
-                onValueChange={(value: "user" | "recruiter") => setUserType(value)}
-              >
-                <SelectTrigger className="focus:outline-none focus:ring-0 focus:ring-offset-0">
-                  <SelectValue placeholder="Select user type" />
-                </SelectTrigger>
-                <SelectContent className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0">
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="recruiter">Recruiter</SelectItem>
-                </SelectContent>
-              </Select> */}
-
                 {mode === "register" && (
-                  <Input
-                    placeholder="Name"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    required
-                    className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0"
-                  />
+                  <>
+                    {/* UserType Dropdown */}
+                    <Select
+                      value={userType}
+                      onValueChange={(value: UserType) => setUserType(value)}
+                    >
+                      <SelectTrigger className="w-full focus:outline-none focus:ring-0 focus:ring-offset-0">
+                        <SelectValue placeholder="Select user type" />
+                      </SelectTrigger>
+                      <SelectContent className="w-full ring-0 focus-visible:ring-offset-0 focus-visible:ring-0">
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="recruiter">Recruiter</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Input
+                      placeholder="Name"
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
+                      required
+                    />
+                  </>
                 )}
 
                 <Input
@@ -293,7 +241,6 @@ export default function LoginPage(props: any) {
                     setFormData({ ...formData, email: e.target.value })
                   }
                   required
-                  className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0"
                 />
 
                 <div className="relative">
@@ -305,10 +252,8 @@ export default function LoginPage(props: any) {
                       setFormData({ ...formData, password: e.target.value })
                     }
                     required
-                    className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0 pr-10" // Add padding-right for the icon
+                    className="pr-10"
                   />
-
-                  {/* Eye Icon */}
                   {mode === "login" && (
                     <div
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer text-gray-500"
@@ -322,7 +267,7 @@ export default function LoginPage(props: any) {
                 {mode === "login" && (
                   <Link
                     href="forgotPass"
-                    className="text-blue-500 block hover:text-blue-600 mt-3 m-[10px]"
+                    className="text-blue-500 block hover:text-blue-600 mt-3"
                   >
                     Forgot Password?
                   </Link>
@@ -341,18 +286,17 @@ export default function LoginPage(props: any) {
                         })
                       }
                       required
-                      className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0"
                     />
+
+                    {/* Country Dropdown */}
                     <Select
                       value={country}
-                      onValueChange={(
-                        value: "UK" | "CA" | "US" | "AU" | "Europe"
-                      ) => setCountry(value)}
+                      onValueChange={(value: Country) => setCountry(value)}
                     >
-                      <SelectTrigger className="focus:outline-none focus:ring-0 focus:ring-offset-0 w-full">
+                      <SelectTrigger className="w-full focus:outline-none focus:ring-0 focus:ring-offset-0">
                         <SelectValue placeholder="Select Country" />
                       </SelectTrigger>
-                      <SelectContent className="ring-0 w-full focus-visible:ring-offset-0 focus-visible:ring-0">
+                      <SelectContent className="w-full ring-0 focus-visible:ring-offset-0 focus-visible:ring-0">
                         <SelectItem value="UK">UK</SelectItem>
                         <SelectItem value="CA">CA</SelectItem>
                         <SelectItem value="US">US</SelectItem>
@@ -360,13 +304,13 @@ export default function LoginPage(props: any) {
                         <SelectItem value="Europe">Europe</SelectItem>
                       </SelectContent>
                     </Select>
+
                     <Input
                       type="text"
                       placeholder="Profile Link"
                       value={formData.profileLink}
                       onChange={changeProfileInput}
                       required
-                      className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0"
                     />
 
                     {userType === "recruiter" && (
@@ -381,7 +325,6 @@ export default function LoginPage(props: any) {
                             })
                           }
                           required
-                          className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0"
                         />
                         <Input
                           placeholder="Phone Number"
@@ -393,7 +336,6 @@ export default function LoginPage(props: any) {
                             })
                           }
                           required
-                          className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0"
                         />
                         <Input
                           placeholder="Company Website"
@@ -405,7 +347,6 @@ export default function LoginPage(props: any) {
                             })
                           }
                           required
-                          className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0"
                         />
                         <Input
                           placeholder="Description"
@@ -417,7 +358,6 @@ export default function LoginPage(props: any) {
                             })
                           }
                           required
-                          className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0"
                         />
                       </>
                     )}
@@ -438,7 +378,7 @@ export default function LoginPage(props: any) {
 
                 <Button
                   type="submit"
-                  className="w-full w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF] text-white"
+                  className="w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF] text-white"
                   disabled={loading}
                 >
                   {loading
