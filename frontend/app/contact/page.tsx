@@ -55,7 +55,7 @@ export default function Contact() {
           />
         )}
 
-        <main className="w-full max-w-6xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pt-16 sm:pt-18 md:pt-20 pb-4 sm:pb-6 md:pb-8">
+        <main className="w-full max-w-6xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 pt-16 sm:pt-18 md:pt-19 pb-4 sm:pb-6 md:pb-8">
           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-lg sm:shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-2 gap-0">
             {/* Left side - Support Icon Illustration */}
             <div

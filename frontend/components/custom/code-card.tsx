@@ -77,7 +77,7 @@ const MobileCodeViewer = ({
           </button>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 truncate max-w-[200px]">{title}</h2>
-            <span className="text-sm text-gray-500 capitalize">{language}</span>
+            <span className="text-sm text--500 capitalize">{language}</span>
           </div>
         </div>
         <button
@@ -194,7 +194,7 @@ const MobileFeedbackPage = ({
                 className={`px-4 py-3 text-sm font-medium capitalize border-b-2 ${
                   activeLanguage === lang
                     ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
+                    : "border-transparent text-black hover:text-gray-700"
                 }`}
               >
                 {lang}
@@ -492,14 +492,14 @@ const CodeCard = ({
   useEffect(() => {
     const highlight = async () => {
       const highlighter = await shiki.createHighlighter({
-        themes: ["light-plus", "monokai"],
+        themes: ["light-plus"],
         langs: ["javascript", "python", "java", "html"],
       });
 
-      // Highlight current language code
+      // Always use light theme with white background
       const highlighted = highlighter.codeToHtml(formatCode(code), {
         lang: language,
-        theme: isDashboard ? "monokai" : "light-plus",
+        theme: "light-plus",
       });
       setHighlightedCode(highlighted);
 
@@ -536,12 +536,7 @@ const CodeCard = ({
 
   return (
     <>
-      <Card
-        style={{ backgroundColor: isDashboard ? bgColor : "initial" }}
-        className={`w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg ${
-          isDashboard ? "bg-[" + bgColor + "]" : "bg-white"
-        }`}
-      >
+      <Card className="w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg bg-white">
         {/* Mobile-optimized header */}
         <CardHeader className="px-2 sm:px-4 py-2 border-b border-[#c8c8c8]">
           <div className="flex flex-col sm:grid sm:grid-cols-12 w-full gap-2 sm:gap-0">
@@ -549,7 +544,7 @@ const CodeCard = ({
             <div className="flex justify-between items-center sm:contents">
               {/* Language */}
               <div className="sm:col-span-3 flex items-center">
-                <span className={`text-xs sm:text-sm font-medium ${isDashboard ? "text-white" : "text-gray-500"}`}>
+                <span className="text-xs sm:text-sm font-medium text-black">
                   {language.toString().slice(0, 1).toUpperCase() +
                     language.toString().slice(1)}
                 </span>
@@ -578,11 +573,7 @@ const CodeCard = ({
 
             {/* Title Row */}
             <div className="sm:col-span-6 flex justify-center sm:justify-center">
-              <CardTitle
-                className={`${
-                  isDashboard ? "text-white" : "text-gray-500"
-                } text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full`}
-              >
+              <CardTitle className="text-gray-900 text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full">
                 {title}
               </CardTitle>
             </div>
@@ -616,7 +607,7 @@ const CodeCard = ({
         </CardHeader>
 
         {/* Mobile-optimized content */}
-        <CardContent className="p-1 sm:p-2 font-display">
+        <CardContent className="p-1 sm:p-2 font-display bg-white">
           <ScrollArea
             ref={scrollAreaRef}
             className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-auto"
@@ -629,23 +620,19 @@ const CodeCard = ({
               }}
               className="shiki break-all sm:break-normal"
               style={{ 
-                backgroundColor: "transparent", 
+                backgroundColor: "white", 
                 fontSize: fontSize,
                 wordBreak: "break-all",
                 overflowWrap: "break-word",
-                whiteSpace: "pre-wrap"
+                whiteSpace: "pre-wrap",
+                color: "#000000"
               }}
             />
           </ScrollArea>
         </CardContent>
 
         {/* Mobile-optimized footer */}
-        <CardFooter
-          style={{ backgroundColor: isDashboard ? footerBgColor : "initial" }}
-          className={`${
-            isDashboard ? "bg-[" + footerBgColor + "]" : "bg-white"
-          } min-h-[40px] sm:min-h-[35px] px-2 sm:px-4 py-2 sm:py-4 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg`}
-        >
+        <CardFooter className="bg-white min-h-[40px] sm:min-h-[35px] px-2 sm:px-4 py-2 sm:py-4 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg">
           {hasButtons && (
             <div className="flex space-x-3 sm:space-x-4">
               <RadixTooltip.Provider>
@@ -663,10 +650,10 @@ const CodeCard = ({
                   <RadixTooltip.Content
                     side="top"
                     sideOffset={5}
-                    className="bg-black text-white px-2 py-1 rounded text-xs shadow-md animate-fadeIn"
+                    className="bg-white text-black px-2 py-1 rounded text-xs shadow-md animate-fadeIn"
                   >
                     Code copied
-                    <RadixTooltip.Arrow className="fill-black" />
+                    <RadixTooltip.Arrow className="" />
                   </RadixTooltip.Content>
                 </RadixTooltip.Root>
               </RadixTooltip.Provider>
