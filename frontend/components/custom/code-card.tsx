@@ -77,7 +77,7 @@ const MobileCodeViewer = ({
           </button>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 truncate max-w-[200px]">{title}</h2>
-            <span className="text-sm text--500 capitalize">{language}</span>
+            <span className="text-sm text-gray-500 capitalize">{language}</span>
           </div>
         </div>
         <button
@@ -90,13 +90,16 @@ const MobileCodeViewer = ({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4 bg-gray-50">
-        <div className="bg-white rounded-lg p-4 shadow-sm">
+      <div className="flex-1 overflow-auto p-4 bg-white">
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
           <ScrollArea className="h-full w-full">
             <div
               dangerouslySetInnerHTML={{ __html: highlightedCode }}
               className="shiki text-sm"
-              style={{ backgroundColor: "transparent" }}
+              style={{ 
+                backgroundColor: "white",
+                color: "#333333"
+              }}
             />
           </ScrollArea>
         </div>
@@ -168,7 +171,7 @@ const MobileFeedbackPage = ({
   return (
     <div className="fixed inset-0 z-50 bg-white sm:hidden overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center space-x-3">
           <button onClick={onClose} className="p-1">
             <ArrowLeft className="w-5 h-5 text-gray-600" />
@@ -183,7 +186,7 @@ const MobileFeedbackPage = ({
       </div>
 
       {/* Content */}
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full bg-white">
         <div className="flex-1 overflow-auto">
           {/* Language Tabs */}
           <div className="flex border-b border-gray-200 bg-gray-50 px-4">
@@ -194,7 +197,7 @@ const MobileFeedbackPage = ({
                 className={`px-4 py-3 text-sm font-medium capitalize border-b-2 ${
                   activeLanguage === lang
                     ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-black hover:text-gray-700"
+                    : "border-transparent text-gray-700 hover:text-gray-900"
                 }`}
               >
                 {lang}
@@ -203,25 +206,28 @@ const MobileFeedbackPage = ({
           </div>
 
           {/* Code Display */}
-          <div className="p-4 bg-gray-50">
+          <div className="p-4 bg-white">
             <div className="bg-white rounded-lg border border-gray-200 mb-4">
               <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
                 <span className="text-sm font-medium text-gray-700 capitalize">
                   {activeLanguage} Code
                 </span>
               </div>
-              <ScrollArea className="h-48 p-3">
+              <ScrollArea className="h-48 p-3 bg-white">
                 <div
                   dangerouslySetInnerHTML={{ __html: currentLangData.highlighted }}
                   className="shiki text-sm"
-                  style={{ backgroundColor: "transparent" }}
+                  style={{ 
+                    backgroundColor: "white",
+                    color: "#333333"
+                  }}
                 />
               </ScrollArea>
             </div>
           </div>
 
           {/* Feedback Form */}
-          <form onSubmit={handleSubmit} className="px-4 pb-4">
+          <form onSubmit={handleSubmit} className="px-4 pb-4 bg-white">
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {type === "bug" ? "Describe the bug:" : "Your suggestion:"}
@@ -229,7 +235,7 @@ const MobileFeedbackPage = ({
               <textarea
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
-                className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full h-32 p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
                 placeholder={type === "bug" ? "Please describe what went wrong..." : "Please share your suggestion..."}
                 required
               />
@@ -252,7 +258,7 @@ const MobileFeedbackPage = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium"
+              className="flex-1 py-3 px-4 border border-gray-300 rounded-lg text-gray-700 font-medium bg-white hover:bg-gray-50"
               disabled={isSubmitting}
             >
               Cancel
@@ -316,7 +322,7 @@ const MobileSharePage = ({
   return (
     <div className="fixed inset-0 z-50 bg-white sm:hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center space-x-3">
           <button onClick={onClose} className="p-1">
             <ArrowLeft className="w-5 h-5 text-gray-600" />
@@ -329,7 +335,7 @@ const MobileSharePage = ({
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-4">
+      <div className="flex-1 p-4 bg-white">
         <div className="space-y-4">
           {/* Native Share */}
           {typeof navigator.share === "function" && (
@@ -345,7 +351,7 @@ const MobileSharePage = ({
           {/* Copy Link */}
           <button
             onClick={handleCopyLink}
-            className="w-full flex items-center justify-center space-x-3 py-4 border border-gray-300 rounded-lg font-medium"
+            className="w-full flex items-center justify-center space-x-3 py-4 border border-gray-300 rounded-lg font-medium bg-white text-gray-700 hover:bg-gray-50"
           >
             {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
             <span>{copied ? 'Link Copied!' : 'Copy Link'}</span>
@@ -538,13 +544,13 @@ const CodeCard = ({
     <>
       <Card className="w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg bg-white">
         {/* Mobile-optimized header */}
-        <CardHeader className="px-2 sm:px-4 py-2 border-b border-[#c8c8c8]">
+        <CardHeader className="px-2 sm:px-4 py-2 border-b border-[#c8c8c8] bg-white">
           <div className="flex flex-col sm:grid sm:grid-cols-12 w-full gap-2 sm:gap-0">
             {/* Mobile: Language and Stats Row */}
             <div className="flex justify-between items-center sm:contents">
               {/* Language */}
               <div className="sm:col-span-3 flex items-center">
-                <span className="text-xs sm:text-sm font-medium text-black">
+                <span className="text-xs sm:text-sm font-medium text-gray-900">
                   {language.toString().slice(0, 1).toUpperCase() +
                     language.toString().slice(1)}
                 </span>
@@ -610,7 +616,7 @@ const CodeCard = ({
         <CardContent className="p-1 sm:p-2 font-display bg-white">
           <ScrollArea
             ref={scrollAreaRef}
-            className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-auto"
+            className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-auto bg-white"
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
           >
@@ -625,7 +631,9 @@ const CodeCard = ({
                 wordBreak: "break-all",
                 overflowWrap: "break-word",
                 whiteSpace: "pre-wrap",
-                color: "#000000"
+                color: "#333333",
+                padding: "0.5rem",
+                borderRadius: "0.375rem"
               }}
             />
           </ScrollArea>
@@ -650,10 +658,10 @@ const CodeCard = ({
                   <RadixTooltip.Content
                     side="top"
                     sideOffset={5}
-                    className="bg-white text-black px-2 py-1 rounded text-xs shadow-md animate-fadeIn"
+                    className="bg-black text-white px-2 py-1 rounded text-xs shadow-md animate-fadeIn"
                   >
                     Code copied
-                    <RadixTooltip.Arrow className="" />
+                    <RadixTooltip.Arrow className="fill-black" />
                   </RadixTooltip.Content>
                 </RadixTooltip.Root>
               </RadixTooltip.Provider>
@@ -708,7 +716,7 @@ const CodeCard = ({
                     <p>Suggestion</p>
                   </TooltipContent>
                 </Tooltip>
-                </TooltipProvider>
+              </TooltipProvider>
 
               <TooltipProvider>
                 <Tooltip>

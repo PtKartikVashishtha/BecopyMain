@@ -7,16 +7,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../ui/dialog";
 import * as Tooltip from "@radix-ui/react-tooltip";
+
 const CodeDialog = (props: any) => {
   const [copied, setCopied] = useState(false);
+  
   const formatCode = (code: string) => {
     const formattedCode = code.replaceAll('    ', '  ');
     return formattedCode;
   }
+  
   const handleCopyCode = async () => {
     try {
       await navigator.clipboard.writeText(props.code);
-
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -26,8 +28,6 @@ const CodeDialog = (props: any) => {
   }
 
   let handleShareClick = useCallback(async (e: any) => {
-
-
     if (props?.language?.length === 0 && navigator.share === undefined) return;
 
     try {
@@ -36,32 +36,47 @@ const CodeDialog = (props: any) => {
         text: `${props.code}`,
         url: window.location.href
       })
-
       console.log('code shared successfully')
-
     } catch (error) {
       console.log('error', error)
     }
   }, [props])
+  
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className="dialog-size p-0 m-0">
         <DialogTitle className="hidden"></DialogTitle>
         <DialogDescription className="hidden"></DialogDescription>
-        <Card className="h-full w-full flex flex-col overflow-hidden">
-          <CardHeader className="p-4 border-b border-[#c8c8c8] flex justify-between items-center">
-            <CardTitle className="text-lg md:text-1xl lg:text-2xl whitespace-nowrap overflow-hidden text-ellipsis">{props.title}</CardTitle>
+        <Card className="h-full w-full flex flex-col overflow-hidden bg-white">
+          <CardHeader className="p-4 border-b border-[#c8c8c8] flex justify-between items-center bg-white">
+            <CardTitle className="text-lg md:text-1xl lg:text-2xl whitespace-nowrap overflow-hidden text-ellipsis text-gray-900">{props.title}</CardTitle>
           </CardHeader>
-          <CardContent className="p-2 flex-1 overflow-hidden">
+          <CardContent className="p-2 flex-1 overflow-hidden bg-white">
             <ScrollArea className="h-full w-full text-sm sm:text-md">
               <Highlight theme={themes.oneLight} code={formatCode(props.code)} language={props.language == "java" ? "c" : props.language}>
                 {({ className, style, tokens, getLineProps, getTokenProps }) => (
-                  <pre className={className} style={{ ...style, backgroundColor: 'transparent' }}>
+                  <pre 
+                    className={className} 
+                    style={{ 
+                      ...style, 
+                      backgroundColor: 'white',
+                      color: '#333333',
+                      padding: '1rem',
+                      borderRadius: '0.375rem'
+                    }}
+                  >
                     {tokens.map((line, i) => (
                       <div key={i} {...getLineProps({ line })}>
-                        <span className="text-gray-500 mr-4">{i + 1}</span>
+                        <span className="text-gray-500 mr-4 select-none">{i + 1}</span>
                         {line.map((token, key) => (
-                          <span key={key} {...getTokenProps({ token })} />
+                          <span 
+                            key={key} 
+                            {...getTokenProps({ token })}
+                            style={{
+                              ...getTokenProps({ token }).style,
+                              color: getTokenProps({ token }).style?.color || '#333333'
+                            }}
+                          />
                         ))}
                       </div>
                     ))}
@@ -91,10 +106,9 @@ const CodeDialog = (props: any) => {
                 </Tooltip.Content>
               </Tooltip.Root>
             </Tooltip.Provider>
-            {/* <button className={`hover:text-gray-600 transition-colors ${copied ? "text-gray-600" : "text-gray-400"}`} onClick={() => handleCopyCode()} ><Copy className="h-4 w-4 sm:h-5 sm:w-5" /></button> */}
-            {/* <button className="text-gray-400 hover:text-gray-800 outline-none" onClick={() => props.onShowFeedback("suggestion")}><Lightbulb className="h-4 w-4 sm:h-5 sm:w-5" /></button> */}
-            {/* <button className="text-gray-400 hover:text-gray-800 outline-none" onClick={() => props.onShowFeedback("bug")} ><Flag className="h-4 w-4 sm:h-5 sm:w-5" /></button> */}
-            <button className="text-gray-400 hover:text-gray-800 outline-none" onClick={handleShareClick}><ExternalLink className="h-4 w-4 sm:h-5 sm:w-5" /></button>
+            <button className="text-gray-400 hover:text-gray-800 outline-none" onClick={handleShareClick}>
+              <ExternalLink className="h-4 w-4 sm:h-5 sm:w-5" />
+            </button>
           </CardFooter>
         </Card>
       </DialogContent>
