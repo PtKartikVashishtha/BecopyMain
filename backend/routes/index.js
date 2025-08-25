@@ -1,6 +1,7 @@
+
 const express = require('express');
 const router = express.Router();
-
+const { protect } = require('../middleware/auth');
 const jobRoutes = require('./jobRoutes');
 const contributionRoutes = require('./contributionRoutes');
 const recruiterRoutes = require('./recruiterRoutes');
@@ -13,6 +14,9 @@ const uploadRoutes = require('./uploadRoutes');
 const gptRoutes = require('./gptRoutes');
 const dashboardRoutes = require('./dashboardRouter');
 const settingRoutes = require('./settingRoutes')
+
+const {getProfile} = require('../controllers/authController')
+const {updateProfile} = require('../controllers/authController')
 // API routes
 router.use('/api/jobs', jobRoutes);
 router.use('/api/contributions', contributionRoutes);
@@ -27,4 +31,8 @@ router.use('/api/gpt', gptRoutes);
 router.use('/api/dashboardstring', dashboardRoutes);
 router.use('/api/setting',settingRoutes)
 
-module.exports = router; 
+//direct route
+router.get('/profile', protect, getProfile)
+router.put('/updateProfile', protect, updateProfile)
+
+module.exports = router;

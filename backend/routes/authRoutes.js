@@ -12,4 +12,6 @@ router.post('/sendVerifyLink', authController.sendVerifyLink)
 router.post('/verifyEmail', authController.verifyEmail)
 router.get('/me', authController.getMe);
 
+router.get('/profile', authController.getProfile);
+router.put('/updateProfile', authController.updateProfile);
 module.exports = router; 

@@ -8,6 +8,7 @@ import {
   LogInIcon,
   UserRound,
   Search,
+  User, // Added User icon for profile
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -87,6 +88,11 @@ const Header = ({
 
     router.push("/");
   };
+
+  const handleViewProfile = () => {
+    router.push("/profile"); // Navigate to profile page
+  };
+
   const { user, logout, isAuthenticated } = useAuth();
   useEffect(() => {
     console.log("isAuthenticated", isAuthenticated);
@@ -228,8 +234,15 @@ const Header = ({
               </SelectTrigger>
               <SelectContent className="ring-0 p-0">
                 <Button
+                  onClick={handleViewProfile}
+                  className="w-full h-full bg-transparent text-black hover:bg-gray-100 justify-start rounded-none border-b"
+                >
+                  <User className="h-4 w-4 mr-4" />
+                  View Profile
+                </Button>
+                <Button
                   onClick={logout}
-                  className="w-15 h-full bg-transparent text-black hover:bg-transparent"
+                  className="w-full h-full bg-transparent text-black hover:bg-gray-100 justify-start rounded-none"
                 >
                   <LogOut className="h-4 w-4 mr-4" />
                   Log out

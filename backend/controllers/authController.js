@@ -6,13 +6,11 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const transporter = require('../utils/sendMailer')
 
-
 function validateLinkedInUrl(url) {
   const regex =
     /^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9-_]+\/?(?:\?.*)?$/;
   return regex.test(url);
 }
-
 
 exports.login = async (req, res) => {
   try {
@@ -27,8 +25,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Check password
-    // const isPasswordValid = await bcrypt.compare(password, user.password);
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
@@ -119,6 +115,142 @@ exports.getMe = async (req, res) => {
   }
 };
 
+// New method to get user profile with additional details
+exports.getProfile = async (req, res) => {
+  try {
+    console.log(req.user)
+    const user = await User.findById(req.user.id).select('-password -forgotPassCode -verificationToken');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    let profileData = {
+      user: user,
+      additionalInfo: null,
+      contributions: []
+    };
+
+    // Get additional profile data based on user type
+    // if (user.userType === 'recruiter') {
+    //   const recruiterInfo = await Recruiter.findOne({ userId: user._id });
+    //   profileData.additionalInfo = recruiterInfo;
+    // } else if (user.userType === 'user') {
+    //   const contributorInfo = await Contributor.findOne({ userId: user._id }).populate('contribution');
+    //   profileData.additionalInfo = contributorInfo;
+      
+    //   // Get user's contributions
+    //   if (contributorInfo && contributorInfo.contributions) {
+    //     profileData.contributions = contributorInfo.contributions;
+    //   }
+    // }
+
+    res.status(200).json({
+      success: true,
+      data: profileData
+    });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+// New method to update user profile
+exports.updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const updateFields = req.body;
+    
+    console.log('Received update fields:', updateFields);
+
+    // Check if there are any fields to update
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No fields provided for update'
+      });
+    }
+
+    // Validate LinkedIn URL if provided
+    if (updateFields.profileLink && !validateLinkedInUrl(updateFields.profileLink)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid LinkedIn URL'
+      });
+    }
+
+    // Separate user fields from additional info fields
+    const userFields = {};
+    const additionalInfoFields = {};
+    
+    // User model fields
+    if (updateFields.name) userFields.name = updateFields.name;
+    if (updateFields.country) userFields.country = updateFields.country;
+    
+    // Additional info fields
+    if (updateFields.phoneNumber) additionalInfoFields.phoneNumber = updateFields.phoneNumber;
+    if (updateFields.profileLink) additionalInfoFields.profileLink = updateFields.profileLink;
+    if (updateFields.companyName) additionalInfoFields.companyName = updateFields.companyName;
+    if (updateFields.companyWebsite) additionalInfoFields.companyWebsite = updateFields.companyWebsite;
+    if (updateFields.description) additionalInfoFields.description = updateFields.description;
+
+    let updatedUser = null;
+
+    // Update user basic info only if there are user fields to update
+    if (Object.keys(userFields).length > 0) {
+      updatedUser = await User.findByIdAndUpdate(
+        userId, 
+        userFields, 
+        { new: true, runValidators: true }
+      ).select('-password -forgotPassCode -verificationToken');
+
+      if (!updatedUser) {
+        return res.status(404).json({
+          success: false,
+          error: 'User not found'
+        });
+      }
+    } else {
+      // Get user info if no user fields were updated
+      updatedUser = await User.findById(userId).select('-password -forgotPassCode -verificationToken');
+    }
+
+    // Update additional info only if there are additional info fields to update
+    if (Object.keys(additionalInfoFields).length > 0) {
+      // Add user info to additional fields for consistency
+      if (userFields.name) additionalInfoFields.name = userFields.name;
+      if (userFields.country) additionalInfoFields.country = userFields.country;
+
+      const updatedAdditionalInfo = await Contributor.findOneAndUpdate(
+        { userId: userId }, 
+        additionalInfoFields, 
+        { new: true, upsert: true } // Create if doesn't exist
+      );
+
+      console.log('Updated additional info:', updatedAdditionalInfo);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: updatedUser,
+      updatedFields: Object.keys(updateFields)
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
 exports.logout = async (req, res) => {
   res.clearCookie('token');
   res.status(200).json({
@@ -128,83 +260,81 @@ exports.logout = async (req, res) => {
 };
 
 exports.register = async (req, res) => {
-  const { companyName,
-    comapanyWebsite,
-    confirmPassword,
-    country,
-    description,
-    email,
-    name,
-    password,
-    phoneNumber,
-    profileLink,
-    userType } = req.body;
+  try {
+    const { companyName,
+      companyWebsite,
+      confirmPassword,
+      country,
+      description,
+      email,
+      name,
+      password,
+      phoneNumber,
+      profileLink,
+      userType } = req.body;
 
+    if (!name || !email || !password || !userType || !country) {
+      return res.status(400).json({
+        success: false,
+        message: 'All required fields must be provided'
+      });
+    }
 
-  if (!name || !email || !password || !userType || !country) {
-    return res.json({
-      message: 'All fields are not given'
-    })
-  }
-
-
-  let isValidLinkedin = validateLinkedInUrl(profileLink)
-
-  if (!isValidLinkedin) {
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid Linkedin Url'
-    });
-  }
-
-
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return res.status(400).json({
-      success: false,
-      error: 'User already exists'
-    });
-  }
-
-  let hashedPassword = await bcrypt.hashSync(password, 10)
-
-  console.log('hashedPassword',hashedPassword)
-  const createUser = await User.create({
-    name,
-    email,
-    password: hashedPassword,
-    userType,
-    country
-  }).then(async (user) => {
-    if (userType === 'recruiter') {
-
-
-      if (!companyName || !phoneNumber || !description) {
-        return res.json({
-          message: 'All fields are not given'
-        })
+    // Validate LinkedIn URL if provided
+    if (profileLink) {
+      let isValidLinkedin = validateLinkedInUrl(profileLink);
+      if (!isValidLinkedin) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid LinkedIn URL'
+        });
       }
+    }
 
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: 'User already exists'
+      });
+    }
 
+    let hashedPassword = await bcrypt.hash(password, 10);
+    console.log('hashedPassword', hashedPassword);
+
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      userType,
+      country
+    });
+
+    if (userType === 'recruiter') {
+      if (!companyName || !phoneNumber || !description) {
+        return res.status(400).json({
+          success: false,
+          message: 'All recruiter fields are required'
+        });
+      }
 
       const recruiter = await Recruiter.create({
         userId: user._id,
         companyName,
-        comapanyWebsite,
+        companyWebsite, // Fixed typo from 'comapanyWebsite'
         country,
         description,
         email,
         name,
         phoneNumber,
         profileLink,
-      })
+      });
 
       return res.status(201).json({
         success: true,
         data: recruiter,
         user: user,
       });
-
     } else {
       const contributor = await Contributor.create({
         userId: user._id,
@@ -220,26 +350,23 @@ exports.register = async (req, res) => {
         data: contributor,
         user: user
       });
-
     }
-  }).catch((error) => {
+  } catch (error) {
     console.log(error);
     return res.status(500).json({
       success: false,
       error: error.message
     });
-  });
-}
+  }
+};
 
 exports.sendResetCode = async (req, res) => {
-
   try {
-    let { email } = req.body
-    let userExists = await User.exists({ email })
+    let { email } = req.body;
+    let userExists = await User.exists({ email });
 
     if (userExists) {
-
-      let code = Math.floor(100000 + Math.random() * 900000)
+      let code = Math.floor(100000 + Math.random() * 900000);
 
       const mailOptions = {
         from: 'Bcopy <ikram@lexidome.com>',
@@ -256,149 +383,106 @@ exports.sendResetCode = async (req, res) => {
         `,
       };
 
-      transporter.sendMail(mailOptions).then(async data => {
-
+      try {
+        await transporter.sendMail(mailOptions);
+        
         let updateCode = await User.findOneAndUpdate({ email: email }, {
           forgotPassCode: code
-        })
+        });
 
         if (updateCode) {
-          console.log(' mail sent');
-
-          return res.json({ message: 'Code Sent' }).status(200)
-
+          console.log('Mail sent');
+          return res.status(200).json({ message: 'Code Sent' });
         }
-      }).catch(err => {
-        return res.json({ message: 'Something went wrong' }).status(400)
-
-      });
-
-
-      // transporter.sendMail(mailOptions, async (error, info) => {
-      //   if (error) {
-      //     console.log('Error:', error);
-      //     return res.json({ message: 'Something went wrong' }).status(400)
-      //   }
-
-      //   let updateCode = await User.findOneAndUpdate({ email: email }, {
-      //     forgotPassCode: code
-      //   })
-
-      //   if (updateCode) {
-      //     return res.json({ message: 'Code Sent' }).status(200)
-
-      //   }
-      //   return res.json({ message: 'Something went wrong' }).status(400)
-
-
-      // })
-
-
+      } catch (err) {
+        return res.status(400).json({ message: 'Something went wrong' });
+      }
+    } else {
+      return res.status(404).json({ message: 'User not found' });
     }
-
   } catch (error) {
-
-    return res.json({ message: 'Internal Server Error' }).status(500)
-
-
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
-
-
-}
+};
 
 exports.matchCode = async (req, res) => {
-  let { email, code } = req.body
-
   try {
+    let { email, code } = req.body;
 
     let isValidCode = await User.exists({
       email,
       forgotPassCode: code
-    })
+    });
 
     if (isValidCode !== null || code == '111111') {
-
       return res.status(200).json({
         message: 'Code Valid'
-      })
+      });
     }
 
-    return res.status(400).json({ message: 'Invalid Code' })
-
-
+    return res.status(400).json({ message: 'Invalid Code' });
   } catch (error) {
-
-    res.status(500).json({ message: 'Internal Server Error' })
+    res.status(500).json({ message: 'Internal Server Error' });
   }
-}
+};
 
 exports.resetPass = async (req, res) => {
-
   try {
     let {
       email,
       code,
       password,
       confirmPassword
-    } = req.body
+    } = req.body;
 
     if (password === confirmPassword) {
-
-      let hashedPassword = await bcrypt.hashSync(password, 10)
+      let hashedPassword = await bcrypt.hash(password, 10);
 
       let changePassword = await User.findOneAndUpdate({ email, forgotPassCode: code }, {
         password: hashedPassword,
         forgotPassCode: 0
-      }, { new: true })
+      }, { new: true });
 
-      console.log('reset pass', changePassword, req.body)
+      console.log('reset pass', changePassword, req.body);
 
       if (changePassword !== null) {
-        return res.json({
+        return res.status(200).json({
           message: 'Password Changed'
-        }).status(200)
+        });
       }
 
-      return res.json({
+      return res.status(400).json({
         message: 'Something went wrong'
-      }).status(400)
+      });
     }
 
-    return res.json({
-      message: 'Password and Confirm Password is not Same'
-    }).status(400)
-
-
+    return res.status(400).json({
+      message: 'Password and Confirm Password do not match'
+    });
   } catch (error) {
-
-    return res.json({
+    return res.status(500).json({
       message: 'Internal Server Error'
-    }).status(500)
-
+    });
   }
-}
+};
 
 exports.sendVerifyLink = async (req, res) => {
-
   try {
-    let { email } = req.body
-    let userExists = await User.exists({ email })
+    let { email } = req.body;
+    console.log("Attempting to send email to:", email); 
+    let userExists = await User.exists({ email });
 
     if (userExists) {
-
       let token = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 
       let updateTokenInDb = await User.findOneAndUpdate({
         email
-      },
-        {
-          verificationToken: token
-        }
-      )
+      }, {
+        verificationToken: token
+      });
 
-      let verificationLink = `${process.env.FRONTEND_URL}/verifyEmail?token=${token}&email=${email}`
-
-
+      let verificationLink = `${process.env.FRONTEND_URL}/verifyEmail?token=${token}&email=${email}`;
+      console.log("Generated verification link:", verificationLink);
 
       const mailOptions = {
         from: 'Bcopy <ikram@lexidome.com>',
@@ -422,59 +506,45 @@ exports.sendVerifyLink = async (req, res) => {
         `,
       };
 
-
-      transporter.sendMail(mailOptions).then(async data => {
-        console.log('link sent ', verificationLink)
-        return res.status(200).json({ message: 'Verification Link Sent' })
-
-
-      }).catch(err => {
-
-        return res.status(400).json({ message: 'Mail cannot be sent' })
-
-      });
-
-
-
+      try {
+        await transporter.sendMail(mailOptions);
+        return res.status(200).json({ message: 'Verification Link Sent' });
+      } catch (err) {
+        console.error('Email sending failed:', err);
+        console.error('Error code:', err.code);
+        console.error('Error response:', err.response);
+        return res.status(400).json({ message: 'Mail cannot be sent', error: err.message });
+      }
+    } else {
+      return res.status(404).json({ message: 'User not found' });
     }
-
   } catch (error) {
-    console.log('eror', error)
-
-    return res.status(500).json({ message: 'Internal Server Error' })
-
-
+    console.log('Error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
-
-
-}
+};
 
 exports.verifyEmail = async (req, res) => {
-
   try {
-    let { token, email } = req.body
+    let { token, email } = req.body;
 
     if (!token || !email) {
-      res.json({ message: 'Something Went Wrong' }).status(400)
-    };
+      return res.status(400).json({ message: 'Token and email are required' });
+    }
 
     let verifyEmail = await User.findOneAndUpdate({
       verificationToken: token,
       email
     }, {
       isEmailVerified: true
-    }, { new: true })
-
+    }, { new: true });
 
     if (verifyEmail) {
-      return res.status(200).json({ message: 'Email verification Successful', data: verifyEmail })
+      return res.status(200).json({ message: 'Email verification successful', data: verifyEmail });
     }
 
-    return res.status(400).json({ message: 'Invalid Token' })
-
+    return res.status(400).json({ message: 'Invalid Token' });
   } catch (error) {
-    res.status(500).json({ message: 'Internal Server Error' })
-
+    res.status(500).json({ message: 'Internal Server Error' });
   }
-}
-
+};
