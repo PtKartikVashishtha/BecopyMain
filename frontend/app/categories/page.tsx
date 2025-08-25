@@ -1,9 +1,11 @@
+// app/categories/page.tsx
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Search, Menu, Trophy, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
@@ -17,9 +19,20 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMediaQuery } from "react-responsive";
 import Sidebar from "@/components/layout/sidebar";
 
+// Define the Program type if not already imported
+type Program = {
+  _id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  // add other fields as needed
+};
+
 export default function Categories() {
+  const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isContributorsSidebarOpen, setIsContributorsSidebarOpen] = useState(false);
+  
   const { isAuthenticated, user } = useAuth();
   const dispatch = useAppDispatch();
   const categoriesState = useAppSelector((state) => state.categories);
@@ -33,15 +46,6 @@ export default function Categories() {
   const [currentPage, setCurrentPage] = useState(1);
   const [programsPerPage] = useState(11);
   const [totalPrograms, setTotalPrograms] = useState(0);
-  
-  // Define the Program type if not already imported
-  type Program = {
-    _id: string;
-    name: string;
-    description?: string;
-    category?: string;
-    // add other fields as needed
-  };
 
   const [allFilteredPrograms, setAllFilteredPrograms] = useState<Program[]>([]);
   const [displayPrograms, setDisplayPrograms] = useState<Program[]>([]);
@@ -192,6 +196,21 @@ export default function Categories() {
     window.location.assign(`/?programId=${program._id}`);
   };
 
+  // Navigation handlers for job pages (mobile only)
+  const handleShowJobPosting = () => {
+    if (isMobile) {
+      router.push('/post-job'); // Navigate to separate page
+      setIsSidebarOpen(false);
+    }
+  };
+
+  const handleShowApplyJob = () => {
+    if (isMobile) {
+      router.push('/apply-job'); // Navigate to separate page  
+      setIsSidebarOpen(false);
+    }
+  };
+
   // Pagination functions
   const totalPages = Math.ceil(totalPrograms / programsPerPage);
   const startIndex = (currentPage - 1) * programsPerPage + 1;
@@ -264,14 +283,8 @@ export default function Categories() {
             // Implementation for category toggling
             console.log("Toggle category:", name);
           }} 
-          onShowJobPosting={function (): void {
-            // Implementation for job posting
-            console.log("Show job posting");
-          }} 
-          onShowApplyJob={function (): void {
-            // Implementation for apply job
-            console.log("Show apply job");
-          }}        
+          onShowJobPosting={handleShowJobPosting} // This will now navigate to separate page
+          onShowApplyJob={handleShowApplyJob}     // This will now navigate to separate page   
         />
       )}
 
