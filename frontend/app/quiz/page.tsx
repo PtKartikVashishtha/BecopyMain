@@ -13,6 +13,7 @@ import QuizDialog from "@/components/dialog/quiz-dialog";
 import { useMediaQuery } from "react-responsive";
 import Sidebar from "@/components/layout/sidebar";
 import { Program } from "@/types";
+import { useRouter } from "next/navigation";
 
 interface Scorer {
   id: string;
@@ -31,6 +32,7 @@ const mockScorers: Scorer[] = [
 ];
 
 export default function Quiz() {
+  const router = useRouter() ;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("all");
@@ -110,7 +112,9 @@ export default function Quiz() {
                 </div>
                 <Button
                   className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 w-full sm:w-auto"
-                  onClick={() => setOpen(true)}
+                  onClick={() => {
+                    router.push('/create-quiz')
+                  }}
                 >
                   <PlusCircle className="w-4 h-4 mr-2" />
                   Create Quiz
@@ -155,7 +159,9 @@ export default function Quiz() {
                   </p>
                   <Button
                     className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 w-full sm:w-auto"
-                    onClick={() => setOpen(true)}
+                    onClick={() => {
+                      router.push('/create-quiz')
+                    }}
                   >
                     <PlusCircle className="w-4 h-4 mr-2" />
                     Create Your First Quiz

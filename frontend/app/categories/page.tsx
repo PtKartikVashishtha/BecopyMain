@@ -258,17 +258,21 @@ export default function Categories() {
         <Sidebar
           onCloseSidebar={() => setIsSidebarOpen(false)}
           isSidebarOpen={isSidebarOpen}
-          onSelectProgram={onSelectProgram}
+          onSelectProgram={onSelectProgram} 
+          expandedCategories={[]} 
+          toggleCategory={function (name: string): void {
+            // Implementation for category toggling
+            console.log("Toggle category:", name);
+          }} 
           onShowJobPosting={function (): void {
             // Implementation for job posting
             console.log("Show job posting");
-          } }
+          }} 
           onShowApplyJob={function (): void {
             // Implementation for apply job
             console.log("Show apply job");
-          } } expandedCategories={[]} toggleCategory={function (name: string): void {
-            throw new Error("Function not implemented.");
-          } }        />
+          }}        
+        />
       )}
 
       <div className="pt-16 sm:pt-20 bg-[#F5F5F5]">
