@@ -14,7 +14,7 @@ export default function LoginPage() {
   useEffect(() => {
     // If already authenticated, redirect to dashboard
     if (isAuthenticated) {
-      router.push('/dashboard');
+      router.push('/admin/dashboard');
     }
   }, [isAuthenticated, router]);
 
@@ -43,26 +43,28 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="p-8 bg-black rounded-lg shadow-md w-96">
-        <h1 className="text-2xl font-bold mb-6 text-center">Admin Login</h1>
+      <div className="p-8 bg-white rounded-lg shadow-md w-96">
+        <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">Admin Login</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700">Email</label>
             <input
               type="email"
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border border-gray-300 rounded text-gray-800 placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
               name="email"
+              placeholder="Enter your email"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Password</label>
+            <label className="block text-sm font-medium mb-1 text-gray-700">Password</label>
             <input
               type="password"
-              className="w-full p-2 border rounded"
+              className="w-full p-2 border border-gray-300 rounded text-gray-800 placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
               name="password"
+              placeholder="Enter your password"
               required
             />
           </div>
@@ -89,4 +91,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-} 
+}
