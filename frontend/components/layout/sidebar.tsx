@@ -108,7 +108,7 @@ const Sidebar = ({
         onCloseSidebar();
       }
     } else {
-      onShowPostJob();
+      handleNavigation("/post-job");
     }
   };
 
@@ -161,11 +161,13 @@ const Sidebar = ({
   return (
     <div
       className={`
-        fixed inset-y-0 left-0 overflow-y-auto
+        fixed inset-y-0 left-0 
+        ${isMobile ? 'overflow-y-auto' : 'overflow-hidden'}
         w-64 bg-white border-r border-gray-200
         transform transition-transform duration-300 z-30 ease-in-out
         top-12 h-[calc(100vh-3rem)] pb-4
         ${isSidebarOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"}
+        ${!isMobile ? 'flex flex-col' : ''}
       `}
     >
       {/* Mobile Top Tabs */}
@@ -244,7 +246,7 @@ const Sidebar = ({
       </ul>
 
       {/* Search */}
-      <div className={`${isMobile ? "pt-2 px-4" : "p-4 border-b border-gray-200"}`}>
+      <div className={`${isMobile ? "pt-2 px-4" : "p-4 border-b border-gray-200 flex-shrink-0"}`}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
@@ -257,20 +259,37 @@ const Sidebar = ({
       </div>
 
       {programNotFound && (
-        <p className="my-2 text-center text-gray-500">No Result found</p>
+        <p className={`my-2 text-center text-gray-500 ${!isMobile ? 'flex-shrink-0' : ''}`}>No Result found</p>
       )}
 
-      <Category
-        expandedCategories={expandedCategories}
-        toggleCategory={toggleCategory}
-        onSelectProgram={onSelectProgram}
-        searchQuery={searchQuery}
-        setProgramNotFound={setProgramNotFound}
-      />
+      {/* Categories Section - Show top 4 programs on desktop, full list on mobile */}
+      <div className={`${!isMobile ? 'flex-shrink-0' : ''}`}>
+        {!isMobile ? (
+          <div className="px-4">
+            {programs.slice(0, 4).map((program) => (
+              <div
+                key={program.id}
+                onClick={() => onSelectProgram(program)}
+                className="py-2 px-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 hover:text-blue-600 transition-colors"
+              >
+                {program.name}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Category
+            expandedCategories={expandedCategories}
+            toggleCategory={toggleCategory}
+            onSelectProgram={onSelectProgram}
+            searchQuery={searchQuery}
+            setProgramNotFound={setProgramNotFound}
+          />
+        )}
+      </div>
 
       {!isMobile && (
-        <>
-          <div className="flex justify-center border-t border-gray-200 py-2">
+        <div className="flex-shrink-0">
+          <div className="flex justify-center py-2">
             <button
               onClick={() => handleNavigation("/categories")}
               className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 text-[#0284DA] bg-white hover:text-[#0284FF] hover:bg-blue-50 transition-colors"
@@ -278,7 +297,7 @@ const Sidebar = ({
               View All Programs
             </button>
           </div>
-          <div className="px-4 flex flex-col gap-y-[11px]">
+          <div className="border-t border-gray-200 px-4 pt-2 flex flex-col gap-y-[11px] pb-4">
             <DailyQuiz router={router} />
             {settings?.isJobs && (settings?.isPostJob || settings?.isApplyJob) && (
               <Articles 
@@ -287,7 +306,7 @@ const Sidebar = ({
               />
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

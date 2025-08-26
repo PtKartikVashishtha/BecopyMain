@@ -283,7 +283,7 @@ export default function Home() {
           </div>
         </div>
       </div>
-      <div className="pt-2 pb-1">
+      <div className=" pb-1">
         <Footer />
       </div>
 

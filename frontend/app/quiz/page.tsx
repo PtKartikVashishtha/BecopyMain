@@ -9,11 +9,11 @@ import Header from "@/components/layout/header";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import QuizDialog from "@/components/dialog/quiz-dialog";
+import dynamic from "next/dynamic";
 import { useMediaQuery } from "react-responsive";
-import Sidebar from "@/components/layout/sidebar";
-import { Program } from "@/types";
+const Sidebar = dynamic(() => import("@/components/layout/sidebar"), { ssr: false });
 import { useRouter } from "next/navigation";
+import { Program } from "@/types";
 
 interface Scorer {
   id: string;
@@ -32,21 +32,25 @@ const mockScorers: Scorer[] = [
 ];
 
 export default function Quiz() {
+  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter() ;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState("all");
+
   const filteredScorers =
     selectedCountry === "all"
       ? mockScorers
       : mockScorers.filter((s) => s.country === selectedCountry);
-  const isMobile = useMediaQuery({ maxWidth: 768 });
-  const isTablet = useMediaQuery({ maxWidth: 1024 });
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  const rawIsMobile = useMediaQuery({ maxWidth: 768 });
+const rawIsTablet = useMediaQuery({ maxWidth: 1024 });
 
-  const handleContentClick = () => {
-    // Implementation of handleContentClick
-  };
-
+// Use them only if mounted
+const isMobile = isMounted && rawIsMobile;
+const isTablet = isMounted && rawIsTablet;
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
@@ -202,7 +206,6 @@ export default function Quiz() {
         <Footer />
       </div>
 
-      <QuizDialog open={open} setOpen={setOpen} />
     </div>
   );
 }
