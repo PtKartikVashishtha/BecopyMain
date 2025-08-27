@@ -23,6 +23,7 @@ import { Program } from "@/types";
 type ResetMode = "sendEmail" | "verify" | "linkSent";
 
 export default function VerifyEmail() {
+  const [isMounted, setIsMounted] = useState(false);
   const [mode, setMode] = useState<ResetMode>("sendEmail");
   const [formData, setFormData] = useState({
     email: "",
@@ -37,6 +38,14 @@ export default function VerifyEmail() {
   const router = useRouter();
 
   const { token, email } = useQueryParams();
+
+  // Fix hydration mismatch
+  const rawIsMobile = useMediaQuery({ maxWidth: 768 });
+  const isMobile = isMounted && rawIsMobile;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     const verifyEmailToken = async () => {
@@ -95,12 +104,19 @@ export default function VerifyEmail() {
   const toggleSidebar = () => {
     setIsSidebarOpen((prev) => !prev);
   };
-
-  const isMobile = useMediaQuery({ maxWidth: 768 });
   
   const onSelectProgram = (program: Program) => {
     window.location.assign(`/?programId=${program._id}`);
   };
+
+  // Prevent hydration mismatch - return after all hooks
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0284DA]"></div>
+      </div>
+    );
+  }
 
   if (isRedirecting) {
     return (

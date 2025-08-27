@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +25,7 @@ type Program = {
 
 export default function PostJob() {
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
@@ -46,7 +47,21 @@ export default function PostJob() {
   const { isAuthenticated, user } = useAuth();
   const dispatch = useAppDispatch();
 
-  const isMobile = useMediaQuery({ maxWidth: 640 });
+  const rawIsMobile = useMediaQuery({ maxWidth: 640 });
+  const isMobile = isMounted && rawIsMobile;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Prevent hydration mismatch
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
+  }
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);

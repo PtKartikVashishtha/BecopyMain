@@ -6,12 +6,11 @@ import { Button } from "@/components/ui/button";
 
 import Footer from "@/components/layout/footer";
 import Header from "@/components/layout/header";
+import Sidebar from "@/components/layout/sidebar";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import dynamic from "next/dynamic";
 import { useMediaQuery } from "react-responsive";
-const Sidebar = dynamic(() => import("@/components/layout/sidebar"), { ssr: false });
 import { useRouter } from "next/navigation";
 import { Program } from "@/types";
 
@@ -42,15 +41,18 @@ export default function Quiz() {
     selectedCountry === "all"
       ? mockScorers
       : mockScorers.filter((s) => s.country === selectedCountry);
+  
   useEffect(() => {
     setIsMounted(true);
   }, []);
+  
   const rawIsMobile = useMediaQuery({ maxWidth: 768 });
-const rawIsTablet = useMediaQuery({ maxWidth: 1024 });
+  const rawIsTablet = useMediaQuery({ maxWidth: 1024 });
 
-// Use them only if mounted
-const isMobile = isMounted && rawIsMobile;
-const isTablet = isMounted && rawIsTablet;
+  // Use them only if mounted
+  const isMobile = isMounted && rawIsMobile;
+  const isTablet = isMounted && rawIsTablet;
+  
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
@@ -58,6 +60,11 @@ const isTablet = isMounted && rawIsTablet;
   let onSelectProgram = (program: Program) => {
     window.location.assign(`/?programId=${program._id}`);
   };
+
+  // Don't render until mounted to prevent hydration mismatch
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-[#F5F5F5] flex flex-col">
@@ -68,9 +75,7 @@ const isTablet = isMounted && rawIsTablet;
           isSidebarOpen={isSidebarOpen}
           onSelectProgram={onSelectProgram}
           onCloseSidebar={() => setIsSidebarOpen(false)}
-          expandedCategories={[]}
-          toggleCategory={() => {}}
-          onShowJobPosting={() => {}}
+          onShowPostJob={() => {}}
           onShowApplyJob={() => {}}
         />
       )}

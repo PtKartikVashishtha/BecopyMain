@@ -35,6 +35,7 @@ type Program = {
 
 const AddCodePage = () => {
   const { isAuthenticated, user } = useAuth();
+  const [isMounted, setIsMounted] = useState(false);
   const [javacode, setJavacode] = useState("");
   const [pythoncode, setPythoncode] = useState("");
   const [htmlcode, setHtmlcode] = useState("");
@@ -48,7 +49,12 @@ const AddCodePage = () => {
   
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const isMobile = useMediaQuery({ maxWidth: 640 });
+  const rawIsMobile = useMediaQuery({ maxWidth: 640 });
+  const isMobile = isMounted && rawIsMobile;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -236,6 +242,11 @@ const AddCodePage = () => {
       )}
     </Highlight>
   );
+
+  // Don't render until mounted to prevent hydration mismatch
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-[#F5F5F5] flex flex-col">

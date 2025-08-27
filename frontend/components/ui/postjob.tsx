@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,6 +15,7 @@ interface AddCodeProps {
 
 export default function AddCode({ onClose }: AddCodeProps) {
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -27,19 +28,50 @@ export default function AddCode({ onClose }: AddCodeProps) {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleInputChange = (
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Memoized editor style to prevent re-renders
+  const editorStyle = useMemo(() => ({
+    fontFamily: '"JetBrains Mono", monospace',
+    fontSize: "14px",
+    backgroundColor: "white",
+    minHeight: "100px",
+    outline: "none"
+  }), []);
+
+  // Memoized highlight function to prevent re-creation
+  const highlightCode = useCallback((code: string, language: string) => (
+    <Highlight theme={themes.oneLight} code={code} language={language}>
+      {({ tokens, getLineProps, getTokenProps }) => (
+        <>
+          {tokens.map((line, i) => (
+            <div key={i} {...getLineProps({ line })}>
+              {line.map((token, key) => (
+                <span key={key} {...getTokenProps({ token })} />
+              ))}
+            </div>
+          ))}
+        </>
+      )}
+    </Highlight>
+  ), []);
+
+  const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    setErrors({ ...errors, [e.target.name]: "" });
-  };
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setErrors(prev => ({ ...prev, [name]: "" }));
+  }, []);
 
-  const handleCodeChange = (field: string, value: string) => {
-    setFormData({ ...formData, [field]: value });
-    setErrors({ ...errors, [field]: "" });
-  };
+  const handleCodeChange = useCallback((field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setErrors(prev => ({ ...prev, [field]: "" }));
+  }, []);
 
-  const validate = () => {
+  const validate = useCallback(() => {
     let tempErrors: { [key: string]: string } = {};
     if (!formData.title.trim()) tempErrors.title = "Title is required";
     if (!formData.description.trim()) tempErrors.description = "Description is required";
@@ -49,9 +81,9 @@ export default function AddCode({ onClose }: AddCodeProps) {
     
     setErrors(tempErrors);
     return Object.keys(tempErrors).length === 0;
-  };
+  }, [formData.title, formData.description, formData.javaCode, formData.pythonCode, formData.htmlCode]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -90,36 +122,33 @@ export default function AddCode({ onClose }: AddCodeProps) {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [validate, formData, onClose, router]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     console.log("Code saved as draft:", formData);
     alert("Code saved as draft!");
-  };
+  }, [formData]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (onClose) {
       onClose();
     } else {
       router.back();
     }
-  };
+  }, [onClose, router]);
 
-  const highlightCode = (code: string, language: string) => (
-    <Highlight theme={themes.oneLight} code={code} language={language}>
-      {({ tokens, getLineProps, getTokenProps }) => (
-        <>
-          {tokens.map((line, i) => (
-            <div key={i} {...getLineProps({ line })}>
-              {line.map((token, key) => (
-                <span key={key} {...getTokenProps({ token })} />
-              ))}
-            </div>
-          ))}
-        </>
-      )}
-    </Highlight>
-  );
+  const handleAnonymousToggle = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData(prev => ({ ...prev, isAnonymous: e.target.checked }));
+  }, []);
+
+  // Don't render until mounted to prevent hydration mismatch
+  if (!isMounted) {
+    return (
+      <div className="fixed inset-0 bg-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-white flex flex-col h-screen overflow-hidden">
@@ -177,13 +206,7 @@ export default function AddCode({ onClose }: AddCodeProps) {
                   onValueChange={(code) => handleCodeChange('javaCode', code)}
                   highlight={(code) => highlightCode(code, "java")}
                   padding={15}
-                  style={{
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: "14px",
-                    backgroundColor: "white",
-                    minHeight: "100px",
-                    outline: "none"
-                  }}
+                  style={editorStyle}
                   placeholder="Enter Java code here..."
                 />
               </div>
@@ -198,13 +221,7 @@ export default function AddCode({ onClose }: AddCodeProps) {
                   highlight={(code) => highlightCode(code, "python")}
                   padding={15}
                   className="text-sm"
-                  style={{
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: "14px",
-                    backgroundColor: "white",
-                    minHeight: "100px",
-                    outline: "none"
-                  }}
+                  style={editorStyle}
                   placeholder="Enter Python code here..."
                 />
               </div>
@@ -218,13 +235,7 @@ export default function AddCode({ onClose }: AddCodeProps) {
                   onValueChange={(code) => handleCodeChange('htmlCode', code)}
                   highlight={(code) => highlightCode(code, "html")}
                   padding={15}
-                  style={{
-                    fontFamily: '"JetBrains Mono", monospace',
-                    fontSize: "14px",
-                    backgroundColor: "white",
-                    minHeight: "100px",
-                    outline: "none"
-                  }}
+                  style={editorStyle}
                   placeholder="Enter HTML code here..."
                 />
               </div>
@@ -236,7 +247,7 @@ export default function AddCode({ onClose }: AddCodeProps) {
                 <input
                   type="checkbox"
                   checked={formData.isAnonymous}
-                  onChange={(e) => setFormData({ ...formData, isAnonymous: e.target.checked })}
+                  onChange={handleAnonymousToggle}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>

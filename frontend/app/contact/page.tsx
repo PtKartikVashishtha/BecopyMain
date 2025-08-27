@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { MessageCircle, Send, Headset } from "lucide-react"; // Added Headset icon
+import { useState, useEffect, useCallback } from "react";
+import { MessageCircle, Send, Headset } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Footer from "@/components/layout/footer";
@@ -20,13 +20,64 @@ import Sidebar from "@/components/layout/sidebar";
 import { Program } from "@/types";
 
 export default function Contact() {
+  const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const isMobile = useMediaQuery({ maxWidth: 768 });
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    subject: "",
+    category: "",
+    message: ""
+  });
+  
+  const rawIsMobile = useMediaQuery({ maxWidth: 768 });
+  const isMobile = isMounted && rawIsMobile;
   const router = useRouter();
 
-  const toggleSidebar = () => {
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // All hooks must be called before any conditional returns
+  const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(!isSidebarOpen);
-  };
+  }, [isSidebarOpen]);
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  }, []);
+
+  const handleSelectChange = useCallback((value: string) => {
+    setFormData(prev => ({ ...prev, category: value }));
+  }, []);
+
+  const handleSubmit = useCallback((e: React.FormEvent) => {
+    e.preventDefault();
+    console.log("Form submitted:", formData);
+    // Add your form submission logic here
+  }, [formData]);
+
+  const handleSelectProgram = useCallback((program: Program) => {
+    router.push(`/?programId=${program._id}`);
+  }, [router]);
+
+  const handleShowJobPosting = useCallback(() => {
+    router.push("/post-job");
+  }, [router]);
+
+  const handleShowApplyJob = useCallback(() => {
+    router.push("/apply-job");
+  }, [router]);
+
+  // Prevent hydration mismatch - moved after all hooks
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -36,22 +87,12 @@ export default function Contact() {
         {isMobile && (
           <Sidebar
             isSidebarOpen={isSidebarOpen}
-            onCloseSidebar={() => {
-              setIsSidebarOpen(false);
-            }} 
+            onCloseSidebar={() => setIsSidebarOpen(false)} 
             expandedCategories={[]} 
-            toggleCategory={function (name: string): void {
-              throw new Error("Function not implemented.");
-            }} 
-            onSelectProgram={function (program: Program): void {
-              throw new Error("Function not implemented.");
-            }} 
-            onShowJobPosting={function (): void {
-              throw new Error("Function not implemented.");
-            }} 
-            onShowApplyJob={function (): void {
-              throw new Error("Function not implemented.");
-            }}          
+            toggleCategory={() => {}} 
+            onSelectProgram={handleSelectProgram} 
+            onShowJobPosting={handleShowJobPosting} 
+            onShowApplyJob={handleShowApplyJob}          
           />
         )}
 
@@ -64,7 +105,6 @@ export default function Contact() {
               }}
               className="relative flex flex-col items-center justify-center p-6 sm:p-8 md:p-12 lg:p-16 text-white min-h-[200px] sm:min-h-[250px] lg:min-h-auto"
             >
-              {/* Big Support Icon */}
               <Headset className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 mb-4 sm:mb-6 md:mb-8 opacity-90" />
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-3 md:mb-4 text-center">
                 Need Help?
@@ -85,18 +125,20 @@ export default function Contact() {
                   Connect With Us
                 </h1>
                 <p className="text-gray-600 max-w-sm mx-auto text-xs sm:text-sm md:text-base px-2">
-                  Have a question or feedback? {"We'd"} love to hear from you!
+                  Have a question or feedback? We'd love to hear from you!
                   Fill out the form and we will get back to you.
                 </p>
               </div>
 
-              <form className="space-y-4 sm:space-y-5 md:space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 md:space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 md:gap-6">
                   <div>
                     <Input
                       id="name"
                       name="name"
                       type="text"
+                      value={formData.name}
+                      onChange={handleInputChange}
                       placeholder="Your name"
                       className="w-full border border-gray-300 rounded-md px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base text-gray-900 focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition"
                     />
@@ -107,6 +149,8 @@ export default function Contact() {
                       id="email"
                       name="email"
                       type="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
                       placeholder="Your email address"
                       className="w-full border border-gray-300 rounded-md px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base text-gray-900 focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition"
                     />
@@ -117,13 +161,15 @@ export default function Contact() {
                       id="subject"
                       name="subject"
                       type="text"
+                      value={formData.subject}
+                      onChange={handleInputChange}
                       placeholder="Message subject"
                       className="w-full border border-gray-300 rounded-md px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base text-gray-900 focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition"
                     />
                   </div>
 
                   <div className="sm:col-span-1">
-                    <Select name="category">
+                    <Select name="category" value={formData.category} onValueChange={handleSelectChange}>
                       <SelectTrigger className="w-full border border-gray-300 rounded-md px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition">
                         <SelectValue placeholder="Category" />
                       </SelectTrigger>
@@ -141,27 +187,14 @@ export default function Contact() {
                     id="message"
                     name="message"
                     rows={4}
+                    value={formData.message}
+                    onChange={handleInputChange}
                     placeholder="Type your message here..."
+                    maxLength={1000}
                     className="w-full border border-gray-300 rounded-md px-3 py-3 sm:px-4 sm:py-3 text-sm sm:text-base text-gray-900 resize-none focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition"
                   />
-                </div>
-
-                {/* CAPTCHA */}
-                <div style={{ display: "none" }}>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Verification
-                  </label>
-                  <div className="border border-gray-300 rounded-md p-4 bg-gray-50">
-                    <p className="text-xs text-red-600 mb-2 font-semibold">
-                      This reCAPTCHA is for testing purposes only. Please report
-                      to the site admin if you are seeing this.
-                    </p>
-                    <div className="bg-white h-16 flex items-center justify-center rounded-md text-sm text-gray-500 shadow-inner border border-dashed border-gray-300">
-                      [reCAPTCHA Placeholder]
-                    </div>
-                  </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    This helps us prevent spam and automated submissions.
+                    {formData.message.length}/1000 characters
                   </p>
                 </div>
 
@@ -179,6 +212,15 @@ export default function Contact() {
             </section>
           </div>
         </main>
+
+        {/* Mobile sidebar backdrop */}
+        {isMobile && isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-20"
+            onClick={() => setIsSidebarOpen(false)}
+            aria-label="Close sidebar"
+          />
+        )}
       </div>
 
       <Footer />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,7 @@ type Program = {
 export default function CreateQuizPage() {
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -36,70 +37,85 @@ export default function CreateQuizPage() {
   const [isQuestionCountOpen, setIsQuestionCountOpen] = useState(false);
   const [isDifficultyOpen, setIsDifficultyOpen] = useState(false);
 
-  const isMobile = useMediaQuery({ maxWidth: 640 });
+  const rawIsMobile = useMediaQuery({ maxWidth: 640 });
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
-  const questionCounts = [
+  // Derived state - safe to use after all hooks
+  const isMobile = isMounted && rawIsMobile;
+
+  // Memoized static data to prevent re-renders
+  const questionCounts = useMemo(() => [
     { value: "5", label: "5 Questions" },
     { value: "10", label: "10 Questions" },
     { value: "15", label: "15 Questions" },
     { value: "20", label: "20 Questions" },
-  ];
+  ], []);
 
-  const difficulties = [
+  const difficulties = useMemo(() => [
     { value: "any", label: "Any Difficulty" },
     { value: "easy", label: "Easy" },
     { value: "medium", label: "Medium" },
     { value: "hard", label: "Hard" },
-  ];
+  ], []);
 
-  const modes = [
+  const modes = useMemo(() => [
     { value: "solo", label: "Solo Practice", desc: "Practice on your own to improve your knowledge" },
     { value: "direct", label: "Direct Challenge", desc: "Challenge a specific friend" },
     { value: "group", label: "Group Challenge", desc: "Create a group quiz for multiple players" },
-  ];
+  ], []);
 
-  const toggleSidebar = () => {
+  const questionTypes = useMemo(() => [
+    { value: "any", label: "Any Type" },
+    { value: "multiple", label: "Multiple Choice" },
+    { value: "truefalse", label: "True/False" },
+  ], []);
+
+  const toggleSidebar = useCallback(() => {
     setIsSidebarOpen(!isSidebarOpen);
-  };
+  }, [isSidebarOpen]);
 
-  const handleSelectProgram = (program: Program) => {
+  const handleSelectProgram = useCallback((program: Program) => {
     router.push(`/?programId=${program._id}`);
-  };
+  }, [router]);
 
-  const handleContentClick = () => {
+  const handleContentClick = useCallback(() => {
     if (isSidebarOpen) {
       setIsSidebarOpen(false);
     }
-  };
+  }, [isSidebarOpen]);
 
-  const handleShowPostJob = () => {
+  const handleShowPostJob = useCallback(() => {
     router.push("/post-job");
-  };
+  }, [router]);
 
-  const handleShowApplyJob = () => {
+  const handleShowApplyJob = useCallback(() => {
     router.push("/apply-job");
-  };
+  }, [router]);
 
-  const handleInputChange = (
+  const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-    setErrors({ ...errors, [e.target.name]: "" });
-  };
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setErrors(prev => ({ ...prev, [name]: "" }));
+  }, []);
 
-  const handleModeChange = (mode: string) => {
-    setFormData({ ...formData, mode });
-  };
+  const handleModeChange = useCallback((mode: string) => {
+    setFormData(prev => ({ ...prev, mode }));
+  }, []);
 
-  const handleQuestionTypeChange = (type: string) => {
-    setFormData({ ...formData, questionType: type });
-  };
+  const handleQuestionTypeChange = useCallback((type: string) => {
+    setFormData(prev => ({ ...prev, questionType: type }));
+  }, []);
 
-  const handleDropdownSelect = (field: string, value: string) => {
-    setFormData({ ...formData, [field]: value });
+  const handleDropdownSelect = useCallback((field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
     if (field === "questionCount") setIsQuestionCountOpen(false);
     if (field === "difficulty") setIsDifficultyOpen(false);
-  };
+  }, []);
 
   const validate = () => {
     let tempErrors: { [key: string]: string } = {};
@@ -128,13 +144,22 @@ export default function CreateQuizPage() {
     }
   };
 
-  const getSelectedLabel = (options: any[], value: string) => {
+  const getSelectedLabel = useCallback((options: any[], value: string) => {
     return options.find(option => option.value === value)?.label || "";
-  };
+  }, []);
 
-  const getSelectedMode = () => {
+  const getSelectedMode = useCallback(() => {
     return modes.find(mode => mode.value === formData.mode);
-  };
+  }, [modes, formData.mode]);
+
+  // Don't render until mounted to prevent hydration mismatch
+  if (!isMounted) {
+    return (
+      <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col overflow-hidden">
@@ -308,11 +333,7 @@ export default function CreateQuizPage() {
                         Question Type
                       </label>
                       <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-                        {[
-                          { value: "any", label: "Any Type" },
-                          { value: "multiple", label: "Multiple Choice" },
-                          { value: "truefalse", label: "True/False" },
-                        ].map((type) => (
+                        {questionTypes.map((type) => (
                           <div key={type.value} className="flex items-center space-x-2">
                             <input
                               type="radio"

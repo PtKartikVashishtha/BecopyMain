@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -55,6 +55,7 @@ function validateLinkedInUrl(url: string): boolean {
 
 export default function RecruiterAuthForm() {
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
 
   const [mode, setMode] = useState<AuthMode>("login");
   const [userType, setUserType] = useState<UserType>("recruiter");
@@ -81,6 +82,17 @@ export default function RecruiterAuthForm() {
   const [redirecting, setRedirecting] = useState(false);
 
   const { fromPostJob } = useQueryParams() as { fromPostJob?: string };
+
+  // Fix hydration mismatch
+  const rawIsMobile = useMediaQuery({ maxWidth: 768 });
+  const isMobile = isMounted && rawIsMobile;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Prevent hydration mismatch
+  if (!isMounted) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,7 +242,6 @@ export default function RecruiterAuthForm() {
     );
   }
 
-  const isMobile = useMediaQuery({ maxWidth: 768 });
   let onSelectProgram = (program: Program) => {
     window.location.assign(`/?programId=${program._id}`);
   };

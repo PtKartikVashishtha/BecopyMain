@@ -25,11 +25,14 @@ import { ApplyJobDialog } from "@/components/dialog/applyjob-dialog";
 import { Program } from "@/types";
 
 export default function Jobs() {
+  const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showApplyJob, setShowApplyJob] = useState(false);
   const dispatch = useAppDispatch();
-  const isMobile = useMediaQuery({ maxWidth: 640 });
-  const isTablet = useMediaQuery({ maxWidth: 1024 });
+  const rawIsMobile = useMediaQuery({ maxWidth: 640 });
+  const rawIsTablet = useMediaQuery({ maxWidth: 1024 });
+  const isMobile = isMounted && rawIsMobile;
+  const isTablet = isMounted && rawIsTablet;
   const [page, setPage] = useState(1);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -39,6 +42,11 @@ export default function Jobs() {
   const recruiterItems = useAppSelector((state) => state.recruiters);
 
   const [expandedJobs, setExpandedJobs] = useState<(string | number)[]>([]);
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const toggleJobDescription = (jobId: string | number) => {
     setExpandedJobs((prev) =>
       prev.includes(jobId) ? prev.filter((id) => id !== jobId) : [...prev, jobId]
@@ -96,6 +104,11 @@ export default function Jobs() {
     window.location.assign(`/?programId=${program._id}`);
   };
 
+  // Don't render until mounted to prevent hydration mismatch
+  if (!isMounted) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-[#F5F5F5] flex flex-col">
       <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
@@ -105,9 +118,7 @@ export default function Jobs() {
           isSidebarOpen={isSidebarOpen}
           onSelectProgram={onSelectProgram}
           onCloseSidebar={() => setIsSidebarOpen(false)}
-          expandedCategories={[]}
-          toggleCategory={() => {}}
-          onShowJobPosting={() => {}}
+          onShowPostJob={() => {}}
           onShowApplyJob={() => {}}
         />
       )}

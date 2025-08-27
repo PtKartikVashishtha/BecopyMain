@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, ChangeEvent } from "react";
+import { useState, useEffect, useRef, ChangeEvent, useMemo } from "react";
 import { ChevronDown, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -26,6 +26,7 @@ type Program = {
 export default function ApplyJobPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [selectedJob, setSelectedJob] = useState("");
@@ -41,7 +42,31 @@ export default function ApplyJobPage() {
   const jobsState = useAppSelector((state) => state.jobs);
   const jobs = jobsState.items;
   const jobsLoading = jobsState.loading;
-  const isMobile = useMediaQuery({ maxWidth: 640 });
+  
+  const rawIsMobile = useMediaQuery({ maxWidth: 640 });
+  const isMobile = isMounted && rawIsMobile;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (jobs.length === 0 && isMounted) {
+      dispatch(fetchJobs());
+    }
+  }, [dispatch, jobs.length, isMounted]);
+
+  // Memoize calculations to improve performance
+  const characterCount = useMemo(() => coverLetter.length, [coverLetter]);
+  
+  // Prevent hydration mismatch
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
+  }
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -320,16 +345,16 @@ export default function ApplyJobPage() {
                         setErrors({...errors, coverLetter: ""});
                       }}
                       placeholder="Briefly explain why you're a good fit for this role..."
-                      rows={isMobile ? 4 : 6}
                       maxLength={1000}
                       disabled={isSubmitting}
-                      className={`w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-900 placeholder-gray-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                      rows={isMobile ? 4 : 4}
+                      className={`w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-900 placeholder-gray-500 text-sm ${
                         errors.coverLetter ? "border-red-500" : ""
                       }`}
                     />
                     {errors.coverLetter && <p className="text-red-500 text-xs mt-1">{errors.coverLetter}</p>}
                     <p className="text-xs text-gray-500 mt-1">
-                      {coverLetter.length}/1000 characters
+                      {characterCount}/1000 characters
                     </p>
                   </div>
 
