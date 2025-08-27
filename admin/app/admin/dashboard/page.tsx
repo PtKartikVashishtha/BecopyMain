@@ -30,7 +30,7 @@ export default function Dashboard() {
   useEffect(() => {
     // If already authenticated, redirect to dashboard
     if (!isAuthenticated) {
-      window.location.href='/login'
+      window.location.href='/admin/login'
     }
   }, [isAuthenticated]);
 

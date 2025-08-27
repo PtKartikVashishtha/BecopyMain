@@ -25,18 +25,12 @@ const adminSchema = new mongoose.Schema({
   }
 });
 
-// Hash password before saving
-adminSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
-    next();
-  }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-});
-
-// Compare password method
+// Compare password method (unchanged)
 adminSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model('Admin', adminSchema); 
+module.exports = mongoose.model('Admin', adminSchema);
+//ye betichod ka develop ganda pitega jb bhi haath lg gya saale itna ni pta 2 baar password hash kr rakha hai 
+//hashsync syncronous method haiaur comare async method hai 
+//chutiye ke patte itna ni aata

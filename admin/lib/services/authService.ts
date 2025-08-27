@@ -46,6 +46,6 @@ export const authService = {
   logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('userData');
-    window.location.href = '/login';
+    window.location.href = '/admin/login';
   }
 }; 

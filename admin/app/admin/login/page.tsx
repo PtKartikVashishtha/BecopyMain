@@ -30,6 +30,8 @@ export default function LoginPage() {
     };
 
     try {
+      // await login(credentials);
+      // router.push('/admin/dashboard');
       let loginData = await authService.login(credentials);
       if (loginData.success) {
         return router.push('/admin/dashboard');
