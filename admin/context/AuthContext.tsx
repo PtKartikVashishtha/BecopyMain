@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('userData');
     localStorage.removeItem('token');
     setIsAuthenticated(false);
-    router.push('/login');
+    router.push('/admin/login');
   };
 
   return (
