@@ -175,6 +175,23 @@ const Header = ({
         >
           Quiz
         </p>
+        
+        {/* New FAQ Button */}
+        <p
+          onClick={() => router.push("/faq")}
+          className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer"
+        >
+          FAQ
+        </p>
+        
+        {/* New Policy Button */}
+        <p
+          onClick={() => router.push("/policy")}
+          className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer"
+        >
+          Policy
+        </p>
+        
         <p
           onClick={() => router.push("../../contact")}
           className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer"
