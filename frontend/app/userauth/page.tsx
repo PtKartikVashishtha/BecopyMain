@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -56,9 +56,14 @@ function validateLinkedInUrl(url: string): boolean {
 
 export default function UserAuth(props: any) {
   const router = useRouter();
-
-  let dispatch = useAppDispatch();
-  const isMobile = useMediaQuery({ maxWidth: 768 });
+  const dispatch = useAppDispatch();
+  
+  // Add mounting state
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Fix media query usage
+  const rawIsMobile = useMediaQuery({ maxWidth: 768 });
+  const isMobile = isMounted && rawIsMobile;
 
   const [mode, setMode] = useState<AuthMode>("login");
   const [userType, setUserType] = useState<UserType>(props.type);
@@ -83,12 +88,20 @@ export default function UserAuth(props: any) {
   const [validLinked, setValidLinkedin] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
 
+  // Add useEffect for mounting
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const { fromApplyJob, fromAddCode, fromAddContribution } =
     useQueryParams() as {
       fromApplyJob?: string;
       fromAddCode?: string;
       fromAddContribution?: string;
     };
+
+  // Add early return to prevent hydration mismatch
+  if (!isMounted) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,6 +220,7 @@ export default function UserAuth(props: any) {
   const toggleSidebar = () => {
     setIsSidebarOpen((prev) => !prev);
   };
+  
   let onSelectProgram = (program: Program) => {
     window.location.assign(`/?programId=${program._id}`);
   };
@@ -227,13 +241,18 @@ export default function UserAuth(props: any) {
           onSelectProgram={onSelectProgram}
           onCloseSidebar={() => {
             setIsSidebarOpen(false);
-          } } expandedCategories={[]} toggleCategory={function (name: string): void {
+          }}
+          expandedCategories={[]}
+          toggleCategory={function (name: string): void {
             throw new Error("Function not implemented.");
-          } } onShowJobPosting={function (): void {
+          }}
+          onShowJobPosting={function (): void {
             throw new Error("Function not implemented.");
-          } } onShowApplyJob={function (): void {
+          }}
+          onShowApplyJob={function (): void {
             throw new Error("Function not implemented.");
-          } }        />
+          }}
+        />
       )}
 
       <div className="flex min-h-screen w-full items-center justify-center p-6 md:p-10">
@@ -246,19 +265,6 @@ export default function UserAuth(props: any) {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* <Select
-                value={userType}
-                onValueChange={(value: "user" | "recruiter") => setUserType(value)}
-              >
-                <SelectTrigger className="focus:outline-none focus:ring-0 focus:ring-offset-0">
-                  <SelectValue placeholder="Select user type" />
-                </SelectTrigger>
-                <SelectContent className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0">
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="recruiter">Recruiter</SelectItem>
-                </SelectContent>
-              </Select> */}
-
                 {mode === "register" && (
                   <Input
                     placeholder="Name"
@@ -291,10 +297,9 @@ export default function UserAuth(props: any) {
                       setFormData({ ...formData, password: e.target.value })
                     }
                     required
-                    className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0 pr-10" // Add padding-right for the icon
+                    className="ring-0 focus-visible:ring-offset-0 focus-visible:ring-0 pr-10"
                   />
 
-                  {/* Eye Icon */}
                   {mode === "login" && (
                     <div
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer text-gray-500"

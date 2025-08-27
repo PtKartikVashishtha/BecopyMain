@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -31,6 +31,8 @@ import Sidebar from "@/components/layout/sidebar";
 import { useMediaQuery } from "react-responsive";
 import { Program } from "@/types";
 
+export const dynamic = "force-dynamic";
+
 type AuthMode = "login" | "register";
 type UserType = "user" | "recruiter";
 type Country = "UK" | "CA" | "US" | "AU" | "Europe";
@@ -55,12 +57,33 @@ function validateLinkedInUrl(url: string): boolean {
 }
 
 export default function LoginPage(props: any) {
+  // Mount state FIRST before any other hooks
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Set mounted state immediately
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Early return BEFORE other hooks
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  return <LoginPageContent {...props} />;
+}
+
+function LoginPageContent(props: any) {
   const router = useRouter();
   let dispatch = useAppDispatch();
   const isMobile = useMediaQuery({ maxWidth: 768 });
 
   const [mode, setMode] = useState<AuthMode>("login");
-  const [userType, setUserType] = useState<UserType>("user"); // default value
+  const [userType, setUserType] = useState<UserType>("user");
   const [country, setCountry] = useState<Country>("UK");
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
 
@@ -109,8 +132,8 @@ export default function LoginPage(props: any) {
           companyWebsite: formData.companyWebsite || "",
           phoneNumber: formData.phoneNumber || "",
           description: formData.description || "",
-          userType: userType, // ✅ from dropdown
-          country: country,   // ✅ from state
+          userType: userType,
+          country: country,
         };
 
         console.log("Sending payload:", registerPayload);
@@ -208,7 +231,6 @@ export default function LoginPage(props: any) {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === "register" && (
                   <>
-                    {/* UserType Dropdown */}
                     <Select
                       value={userType}
                       onValueChange={(value: UserType) => setUserType(value)}
@@ -288,7 +310,6 @@ export default function LoginPage(props: any) {
                       required
                     />
 
-                    {/* Country Dropdown */}
                     <Select
                       value={country}
                       onValueChange={(value: Country) => setCountry(value)}

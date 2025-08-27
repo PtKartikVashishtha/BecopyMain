@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Suspense } from "react";
 import { ChevronDown, Search, Menu, Trophy, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,32 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMediaQuery } from "react-responsive";
 import Sidebar from "@/components/layout/sidebar";
 
+// Add this export for dynamic rendering
+export const dynamic = "force-dynamic";
+
 export default function Categories() {
+  // CRITICAL: Add mounting state FIRST before any other hooks
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Set mounted state immediately
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Early return BEFORE other hooks to prevent hook order changes
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  return <CategoriesContent />;
+}
+
+// Move all component logic to separate component to avoid hook order issues
+function CategoriesContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isContributorsSidebarOpen, setIsContributorsSidebarOpen] = useState(false);
   const { isAuthenticated, user } = useAuth();
@@ -34,28 +59,27 @@ export default function Categories() {
   const [programsPerPage] = useState(11);
   const [totalPrograms, setTotalPrograms] = useState(0);
   
-  // Define the Program type if not already imported
   type Program = {
     _id: string;
     name: string;
     description?: string;
     category?: string;
-    // add other fields as needed
   };
 
   const [allFilteredPrograms, setAllFilteredPrograms] = useState<Program[]>([]);
   const [displayPrograms, setDisplayPrograms] = useState<Program[]>([]);
-  const { items, loading, error } = useAppSelector(
-    (state) => state.contributors
-  );
+  const { items, loading, error } = useAppSelector((state) => state.contributors);
   const [selectedCountry, setSelectedCountry] = useState<string>("all");
+  
+  // Now safe to use media queries after mounting check
+  const isMobile = useMediaQuery({ maxWidth: 640 });
+  const isTablet = useMediaQuery({ maxWidth: 1024 });
   
   useEffect(() => {
     if (isAuthenticated && user?.country) setSelectedCountry(user.country);
     else setSelectedCountry("all");
   }, [isAuthenticated, user]);
 
-  // Filter contributors based on selected country
   const filteredContributors =
     selectedCountry === "all"
       ? items
@@ -66,9 +90,6 @@ export default function Categories() {
     dispatch(fetchPrograms());
     dispatch(fetchContributors());
   }, []);
-
-  const isMobile = useMediaQuery({ maxWidth: 640 });
-  const isTablet = useMediaQuery({ maxWidth: 1024 });
 
   const [categories, setCategories] = useState(
     isMobile ? categoriesState.items.slice(0, 4) : categoriesState.items
@@ -84,7 +105,6 @@ export default function Categories() {
     }
   }, [categoriesState.items, isMobile]);
 
-  // Update displayed programs when pagination changes
   useEffect(() => {
     const startIndex = (currentPage - 1) * programsPerPage;
     const endIndex = startIndex + programsPerPage;
@@ -92,18 +112,15 @@ export default function Categories() {
     setDisplayPrograms(paginatedPrograms);
   }, [allFilteredPrograms, currentPage, programsPerPage]);
 
-  // Header's sidebar toggle (hamburger menu) - this should show main navigation
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  // Separate toggle for contributors sidebar
   const toggleContributorsSidebar = () => {
     setIsContributorsSidebarOpen(!isContributorsSidebarOpen);
   };
 
   const handleContentClick = () => {
-    // Only close sidebars, don't prevent other interactions
     if (isSidebarOpen) setIsSidebarOpen(false);
     if (isContributorsSidebarOpen) setIsContributorsSidebarOpen(false);
   };
@@ -192,7 +209,6 @@ export default function Categories() {
     window.location.assign(`/?programId=${program._id}`);
   };
 
-  // Pagination functions
   const totalPages = Math.ceil(totalPrograms / programsPerPage);
   const startIndex = (currentPage - 1) * programsPerPage + 1;
   const endIndex = Math.min(currentPage * programsPerPage, totalPrograms);
@@ -213,7 +229,6 @@ export default function Categories() {
     setCurrentPage(page);
   };
 
-  // Generate page numbers for pagination
   const getPageNumbers = () => {
     const pages = [];
     const maxVisiblePages = 5;
@@ -253,7 +268,6 @@ export default function Categories() {
     <div className="min-h-screen bg-[#F5F5F5]">
       <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
       
-      {/* Main Navigation Sidebar - This is what should show when hamburger menu is clicked */}
       {isMobile && (
         <Sidebar
           onCloseSidebar={() => setIsSidebarOpen(false)}
@@ -261,15 +275,12 @@ export default function Categories() {
           onSelectProgram={onSelectProgram} 
           expandedCategories={[]} 
           toggleCategory={function (name: string): void {
-            // Implementation for category toggling
             console.log("Toggle category:", name);
           }} 
           onShowJobPosting={function (): void {
-            // Implementation for job posting
             console.log("Show job posting");
           }} 
           onShowApplyJob={function (): void {
-            // Implementation for apply job
             console.log("Show apply job");
           }}        
         />
@@ -278,7 +289,6 @@ export default function Categories() {
       <div className="pt-16 sm:pt-20 bg-[#F5F5F5]">
         <div className="flex flex-col w-full relative min-h-[calc(95vh-4rem)] sm:min-h-[calc(95vh-5rem)]">
           <div className="flex flex-col lg:flex-row flex-1">
-            {/* Left Sidebar - Contributors (Desktop only) */}
             <aside className="lg:w-[13.5%] w-full hidden lg:block p-2 sm:p-4 lg:p-6">
               <div
                 style={{
@@ -328,14 +338,12 @@ export default function Categories() {
               </div>
             </aside>
 
-            {/* Main Content */}
             <main 
               className="flex-1 p-2 sm:p-4 xl:p-6 lg:w-[81.5%]" 
               style={{ paddingTop: 0 }}
             >
               <div className="mx-auto max-w-full">
                 <div className="pl-0 lg:pl-4 xl:pl-6" onClick={handleContentClick}>
-                  {/* Add Contributors Toggle Button for Mobile */}
                   {isMobile && (
                     <div className="mb-4 flex justify-between items-center">
                       <h1 className="text-lg font-semibold">Categories</h1>
@@ -357,7 +365,6 @@ export default function Categories() {
                   )}
 
                   <div className="max-w-full mx-auto space-y-4 sm:space-y-6 lg:space-y-8">
-                    {/* Categories Section */}
                     <div>
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-3 sm:gap-4">
                         <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold">
@@ -424,7 +431,6 @@ export default function Categories() {
                       </div>
                     </div>
 
-                    {/* Available Programs Section */}
                     <div>
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 sm:mb-4 gap-3 sm:gap-4">
                         <div className="flex flex-col">
@@ -481,7 +487,6 @@ export default function Categories() {
                             ))}
                           </div>
 
-                          {/* Pagination Controls */}
                           {totalPages > 1 && (
                             <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-4">
                               <div className="text-sm text-gray-600">
@@ -555,7 +560,6 @@ export default function Categories() {
             </main>
           </div>
           
-          {/* Mobile Contributors Sidebar - Separate from main navigation */}
           {isMobile && (
             <div
               className={`
@@ -610,7 +614,6 @@ export default function Categories() {
             </div>
           )}
 
-          {/* Backdrop for mobile sidebars */}
           {isMobile && (isSidebarOpen || isContributorsSidebarOpen) && (
             <div
               className="fixed inset-0 bg-black bg-opacity-50 z-20"
