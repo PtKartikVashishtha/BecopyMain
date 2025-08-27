@@ -1,9 +1,11 @@
-import { Code, WandSparkles, ExternalLink } from "lucide-react";
+import { Code, WandSparkles, ExternalLink, MessageCircle } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { useState } from "react";
 import api from "@/lib/api";
 import ChatgptConvertDialog from "../dialog/chatgpt-covert-dialog";
+import AskGPTDialog from "../dialog/ask-gpt-dialog";
+
 interface ChatGPTCardProps {
   language: string;
   clickFunc: (lang: string) => void;
@@ -13,10 +15,11 @@ interface ChatGPTCardProps {
 const ChatGPTCard = ({ language, clickFunc, showDialog }: ChatGPTCardProps) => {
   const [code, setCode] = useState("");
   const [open, setOpen] = useState(false);
+  const [askGPTOpen, setAskGPTOpen] = useState(false);
   const [convertedCode, setConvertedCode] = useState("");
   const [convertTo, setConvertTo] = useState("Java");
   const [converting, setConverting] = useState(false);
-  // const [language, setLanguage] = useState("")
+
   const convertCode = async (convertTo: String, codeOption: String = "") => {
     setConverting(true);
 
@@ -39,6 +42,7 @@ const ChatGPTCard = ({ language, clickFunc, showDialog }: ChatGPTCardProps) => {
       setConverting(false);
     }
   };
+
   return (
     <>
       <ChatgptConvertDialog
@@ -48,27 +52,27 @@ const ChatGPTCard = ({ language, clickFunc, showDialog }: ChatGPTCardProps) => {
         language={convertTo}
         title={convertTo}
       />
+      
+      <AskGPTDialog
+        open={askGPTOpen}
+        onOpenChange={setAskGPTOpen}
+      />
+
       <Card className="shadow-md flex flex-col">
         <div className="grid grid-cols-12 bg-white p-2 border-b border-[#c8c8c8] rounded-t-lg">
           <div className="col-span-11 p-2 flex flex-wrap">
             <div className="flex flex-inline">
               <Code className="h-5 w-5 sm:h-6 sm:w-6 mb-2" />
               <h2 className="text-base sm:text-lg font-bold">
-                &nbsp;&nbsp;ChatGPT Code Converter
+                &nbsp;&nbsp;ChatGPT Code Helper
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-gray-600 ">
-              Transform your code between programming languages
+              Transform your code between programming languages & get help
             </p>
           </div>
           <div className="col-span-1 flex align-center justify-center">
-            {/* <Button
-              variant="outline"
-              size="sm"
-              className="text-white hover:text-white outline-none border-none"
-              onClick={() => showDialog(true)}>
-              <ExternalLink className="w-4 h-4 text-gray-600 place-self-center" />
-            </Button> */}
+            {/* Optional: Add expand dialog button here if needed */}
           </div>
         </div>
         <CardContent className="p-0 ">
@@ -101,60 +105,51 @@ const ChatGPTCard = ({ language, clickFunc, showDialog }: ChatGPTCardProps) => {
             </>
           ) : (
             <>
-              {/* <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none col-span-1"
-                  onClick={() => convertCode("java")}
-                >
-                  <WandSparkles className="h-4 w-4 mr-1" /> {"Java"}
-                </Button>
+              {/* Top row - 2 buttons */}
+              <div className="w-full grid grid-cols-2 gap-2 mb-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none col-span-1"
-                  onClick={() => convertCode("python")}
+                  className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none"
+                  onClick={() => convertCode("javascript", "Generate a JavaScript function")}
                 >
-                  <WandSparkles className="h-4 w-4 mr-1" /> {"Python"}
+                  <WandSparkles className="h-4 w-4 mr-1" />
+                  {"Generate JS Function"}
                 </Button>
+
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none col-span-1"
-                  onClick={() => convertCode("html")}
+                  className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none"
+                  onClick={() => convertCode("css", "Create a responsive CSS grid layout")}
                 >
-                  <WandSparkles className="h-4 w-4 mr-1" /> {"HTML"}
-                </Button> */}
+                  <WandSparkles className="h-4 w-4 mr-1" />
+                  {"Create CSS Grid"}
+                </Button>
+              </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none col-span-1"
-                onClick={() => convertCode("javascript", "Generate a JavaScript function")}
-              >
-                <WandSparkles className="h-4 w-4 mr-1" />{" "}
-                {"Generate JS Function"}
-              </Button>
+              {/* Bottom row - 2 buttons */}
+              <div className="w-full grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none"
+                  onClick={() => convertCode("regex", "Write a regex for email validation")}
+                >
+                  <WandSparkles className="h-4 w-4 mr-1" />
+                  {"Email Regex"}
+                </Button>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none col-span-1"
-                onClick={() => convertCode("css", "Create a responsive CSS grid layout")}
-              >
-                <WandSparkles className="h-4 w-4 mr-1" />{" "}
-                {"Create CSS Grid"}
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none col-span-1"
-                onClick={() => convertCode("regex", "Write a regex for email validation")}
-              >
-                <WandSparkles className="h-4 w-4 mr-1" />{" "}
-                {"Email Regex"}
-              </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-white bg-[#16a34a] hover:bg-[#15803d] hover:text-white outline-none"
+                  onClick={() => setAskGPTOpen(true)}
+                >
+                  <MessageCircle className="h-4 w-4 mr-1" />
+                  {"Ask GPT"}
+                </Button>
+              </div>
             </>
           )}
         </CardFooter>
