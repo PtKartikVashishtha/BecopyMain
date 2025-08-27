@@ -10,10 +10,10 @@ import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import Sidebar from "@/components/layout/sidebar";
 import { useMediaQuery } from "react-responsive";
-import { useAuth } from "@/hooks/useAuth"; // ADD THIS
-import { toast } from "@/hooks/use-toast"; // ADD THIS
-import ftpapi from "@/lib/ftpapi"; // ADD THIS
-import { saveFile } from "../../utils/fileStoreInIdb"; // ADD THIS
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
+import ftpapi from "@/lib/ftpapi";
+import { saveFile } from "../../utils/fileStoreInIdb";
 
 // Define the Program type
 type Program = {
@@ -35,7 +35,6 @@ export default function ApplyJobPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // ADD THESE
   const { user, isAuthenticated } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,6 +44,8 @@ export default function ApplyJobPage() {
   
   const rawIsMobile = useMediaQuery({ maxWidth: 640 });
   const isMobile = isMounted && rawIsMobile;
+
+  const characterCount = useMemo(() => coverLetter.length, [coverLetter]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -56,29 +57,11 @@ export default function ApplyJobPage() {
     }
   }, [dispatch, jobs.length, isMounted]);
 
-  // Memoize calculations to improve performance
-  const characterCount = useMemo(() => coverLetter.length, [coverLetter]);
-  
-  // Prevent hydration mismatch
-  if (!isMounted) {
-    return (
-      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
-      </div>
-    );
-  }
-
+  // Move all hook calls above any conditional returns
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  useEffect(() => {
-    if (jobs.length === 0) {
-      dispatch(fetchJobs());
-    }
-  }, [dispatch, jobs.length]);
-
-  // ADD DRAFT FUNCTIONALITY
   const saveDraft = () => {
     const draftData = {
       selectedJob,
@@ -113,19 +96,16 @@ export default function ApplyJobPage() {
     }
   };
 
-  // Handle program selection from sidebar
   const handleSelectProgram = (program: Program) => {
     router.push(`/?programId=${program._id}`);
   };
 
-  // Handle closing sidebar when clicking on main content
   const handleContentClick = () => {
     if (isSidebarOpen) {
       setIsSidebarOpen(false);
     }
   };
 
-  // Placeholder functions for job-related actions
   const handleShowPostJob = () => {
     router.push("/post-job");
   };
@@ -134,7 +114,6 @@ export default function ApplyJobPage() {
     console.log("Already on apply job page");
   };
 
-  // REPLACE handleFileUpload WITH PROPER VALIDATION
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files && event.target.files[0];
     if (file) {
@@ -146,7 +125,7 @@ export default function ApplyJobPage() {
         });
         setUploadedFile(null);
         event.target.value = "";
-      } else if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      } else if (file.size > 10 * 1024 * 1024) {
         toast({
           title: "File Too Large",
           description: "Please upload a file smaller than 10MB.",
@@ -172,7 +151,6 @@ export default function ApplyJobPage() {
     return Object.keys(tempErrors).length === 0;
   };
 
-  // REPLACE handleSubmit WITH REAL BACKEND INTEGRATION
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
@@ -180,15 +158,12 @@ export default function ApplyJobPage() {
     setIsSubmitting(true);
 
     try {
-      // Find the selected job object
       const selectedJobObj = jobs.find(job => job.title === selectedJob);
       if (!selectedJobObj) {
         throw new Error("Selected job not found");
       }
 
-      // Check authentication for non-anonymous applications
       if (!isAuthenticated || !user) {
-        // Save application data and redirect to login
         let fileId = await saveFile(uploadedFile!);
         
         let applyFormData = {
@@ -202,14 +177,12 @@ export default function ApplyJobPage() {
         return router.push('/userauth?fromApplyJob=true');
       }
 
-      // Create form data for API submission
       const formData = new FormData();
       formData.append('userId', user.id);
       formData.append('jobId', selectedJobObj._id);
       formData.append('coverLetter', coverLetter);
       formData.append('file', uploadedFile!, uploadedFile!.name);
 
-      // Submit to backend
       const response = await ftpapi.post('/api/upload/apply', formData);
 
       if (response.status === 200) {
@@ -220,17 +193,11 @@ export default function ApplyJobPage() {
           duration: 5000,
         });
 
-        // Clear form
         setSelectedJob("");
         setCoverLetter("");
         setUploadedFile(null);
         setErrors({});
-        
-        // Clear draft
         localStorage.removeItem('jobApplicationDraft');
-        
-        // Optionally redirect
-        // router.push("/jobs");
       } else {
         throw new Error("Application submission failed");
       }
@@ -259,25 +226,35 @@ export default function ApplyJobPage() {
     fileInputRef.current?.click();
   };
 
+  // Move the early return to the very end, after all hooks
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F5F5F5] flex flex-col">
       <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
-      {/* Sidebar Component */}
       {isMobile && 
         <Sidebar
         isSidebarOpen={isSidebarOpen}
         onSelectProgram={handleSelectProgram}
         onCloseSidebar={() => setIsSidebarOpen(false)}
-        onShowPostJob={handleShowPostJob}
+        onShowJobPosting={handleShowPostJob}
         onShowApplyJob={handleShowApplyJob}
+        expandedCategories={[]}
+        toggleCategory={function (name: string): void {
+          throw new Error("Function not implemented.");
+        }}
       />}
       
       <div className="flex-1 pt-16 sm:pt-13">
-        {/* Main content wrapper with proper padding for sidebar */}
         <div onClick={handleContentClick}>
           <div className="max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
-            {/* Page Header */}
             <div className="mb-3 sm:mb-4 flex justify-between items-start">
               <div>
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
@@ -288,7 +265,6 @@ export default function ApplyJobPage() {
                 </p>
               </div>
               
-              {/* ADD LOAD DRAFT BUTTON */}
               <button
                 type="button"
                 onClick={loadDraft}
@@ -298,11 +274,9 @@ export default function ApplyJobPage() {
               </button>
             </div>
 
-            {/* Form Container */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200">
               <form onSubmit={handleSubmit} className="p-3 sm:p-4 lg:p-6">
                 <div className="space-y-4 sm:space-y-5">
-                  {/* Job Selection */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Select Job Position *
@@ -333,7 +307,6 @@ export default function ApplyJobPage() {
                     {errors.selectedJob && <p className="text-red-500 text-xs mt-1">{errors.selectedJob}</p>}
                   </div>
 
-                  {/* Cover Letter */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Cover Letter *
@@ -358,12 +331,11 @@ export default function ApplyJobPage() {
                     </p>
                   </div>
 
-                  {/* Resume Upload */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Upload Resume *
                     </label>
-                    <div className={`border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-blue-400 transition-colors bg-gray-50 ${
+                    <div className={`border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center hover:border-blue-400 transition-colors bg-gray-50 ${
                       isSubmitting ? "cursor-not-allowed opacity-50" : "cursor-pointer"
                     } ${errors.file ? "border-red-500" : ""}`}>
                       <input
@@ -379,26 +351,26 @@ export default function ApplyJobPage() {
                       {!uploadedFile ? (
                         <div
                           onClick={isSubmitting ? undefined : handleFileClick}
-                          className="cursor-pointer flex flex-col items-center space-y-2 sm:space-y-3"
+                          className="cursor-pointer flex flex-col items-center space-y-1 sm:space-y-2"
                         >
-                          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
-                            <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" />
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
+                            <Upload className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
                           </div>
                           <div className="text-gray-600">
-                            <span className="text-gray-800 font-medium text-sm sm:text-base">
+                            <span className="text-gray-800 font-medium text-sm">
                               Click to upload resume
                             </span>
                           </div>
-                          <p className="text-xs sm:text-sm text-gray-500">PDF only (MAX. 10MB)</p>
+                          <p className="text-xs text-gray-500">PDF only (MAX. 10MB)</p>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-center space-x-2 text-sm text-green-700 bg-green-50 py-2 sm:py-3 px-3 sm:px-4 rounded-lg border border-green-200">
-                          <span className="font-medium truncate max-w-[200px]">✓ {uploadedFile.name}</span>
+                        <div className="flex items-center justify-center space-x-2 text-sm text-green-700 bg-green-50 py-2 px-3 rounded-lg border border-green-200">
+                          <span className="font-medium truncate max-w-[150px]">✓ {uploadedFile.name}</span>
                           <button
                             type="button"
                             onClick={removeFile}
                             disabled={isSubmitting}
-                            className="text-red-500 hover:text-red-700 ml-2 p-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="text-red-500 hover:text-red-700 ml-1 p-1 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -412,7 +384,6 @@ export default function ApplyJobPage() {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 mt-6">
                   <Button
                     type="button"
@@ -453,7 +424,6 @@ export default function ApplyJobPage() {
         </div>
       </div>
 
-      {/* Backdrop for mobile sidebar */}
       {isMobile && isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-20"

@@ -250,7 +250,7 @@ export default function PostJob() {
         onShowApplyJob={handleShowApplyJob}
       />}
       
-      <div className="flex-1 pt-16 sm:pt-13">
+      <div className="flex-1 pt-12 sm:pt-13">
         {/* Main content wrapper with proper padding for sidebar */}
         <div onClick={handleContentClick}>
           <div className="max-w-6xl mx-auto px-2 sm:px-4 py-2 sm:py-2">
