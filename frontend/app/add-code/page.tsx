@@ -1,9 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
+import { useAppDispatch } from "@/store/hooks";
+import { savedContributions } from "@/store/reducers/contributionSlice";
+import { ArrowLeft, Code, Save, Send } from "lucide-react";
 import { Highlight, themes } from "prism-react-renderer";
 import Editor from "react-simple-code-editor";
+//import CategorySelect from "@/custom/category-select";
+import api from "@/lib/api";
+import { BootstrapSwitch } from "@/components/ui/bootstrap-switch";
+import { toast } from "@/hooks/use-toast";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import Sidebar from "@/components/layout/sidebar";
@@ -18,6 +34,7 @@ type Program = {
 };
 
 const AddCodePage = () => {
+  const { isAuthenticated, user } = useAuth();
   const [javacode, setJavacode] = useState("");
   const [pythoncode, setPythoncode] = useState("");
   const [htmlcode, setHtmlcode] = useState("");
@@ -27,26 +44,118 @@ const AddCodePage = () => {
   const [error, setError] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const isMobile = useMediaQuery({ maxWidth: 640 });
-
-  const categories = [
-    { value: "", label: "Select a category", icon: "📁" },
-    { value: "web-development", label: "Web Development", icon: "🌐" },
-    { value: "mobile-development", label: "Mobile Development", icon: "📱" },
-    { value: "data-science", label: "Data Science", icon: "📊" },
-    { value: "algorithms", label: "Algorithms", icon: "⚡" },
-    { value: "machine-learning", label: "Machine Learning", icon: "🤖" },
-  ];
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  useEffect(() => {
+    // Load saved data from localStorage if returning from login
+    const savedData = localStorage.getItem('addCodeData');
+    if (savedData) {
+      try {
+        const parsedData = JSON.parse(savedData);
+        setName(parsedData.name || "");
+        setDescription(parsedData.description || "");
+        setJavacode(parsedData.code?.java || "");
+        setPythoncode(parsedData.code?.python || "");
+        setHtmlcode(parsedData.code?.html || "");
+        setSelectedCategory(parsedData.category || "");
+        setIsAnonymous(parsedData.isAnonymous || false);
+        localStorage.removeItem('addCodeData');
+      } catch (error) {
+        console.error("Error loading saved data:", error);
+      }
+    }
+
+    if (isAuthenticated && user?.id) {
+      dispatch(savedContributions(user.id));
+    }
+  }, [isAuthenticated, user, dispatch]);
+
+  const loadDraft = () => {
+    try {
+      const draft = localStorage.getItem('draftCodeData');
+      if (draft) {
+        const draftData = JSON.parse(draft);
+        setName(draftData.name || "");
+        setDescription(draftData.description || "");
+        setJavacode(draftData.code?.java || "");
+        setPythoncode(draftData.code?.python || "");
+        setHtmlcode(draftData.code?.html || "");
+        setSelectedCategory(draftData.category || "");
+        setIsAnonymous(draftData.isAnonymous || false);
+        toast({
+          title: "Draft Loaded",
+          description: "Your saved draft has been loaded.",
+          variant: "success",
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error("Error loading draft:", error);
+    }
+  };
+
+  // Handle program selection from sidebar
+  const handleSelectProgram = (program: Program) => {
+    router.push(`/?programId=${program._id}`);
+  };
+
+  // Handle closing sidebar when clicking on main content
+  const handleContentClick = () => {
+    if (isSidebarOpen) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  // Placeholder functions for job-related actions
+  const handleShowPostJob = () => {
+    router.push("/post-job");
+  };
+
+  const handleShowApplyJob = () => {
+    router.push("/apply-job");
+  };
+
+  const handleBack = () => {
+    router.back();
+  };
+
+  const handleSave = async () => {
+    const programData = {
+      name,
+      description,
+      category: selectedCategory,
+      code: {
+        java: javacode,
+        python: pythoncode,
+        html: htmlcode,
+      },
+      copies: 0,
+      bugfixes: 0,
+      suggestions: 0,
+      views: 0,
+      featureRank: 0,
+      isFeatured: false,
+      isAnonymous
+    };
+
+    localStorage.setItem('draftCodeData', JSON.stringify(programData));
+    toast({
+      title: "Draft Saved",
+      description: "Your code has been saved as a draft locally.",
+      variant: "success",
+      duration: 3000,
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -67,59 +176,50 @@ const AddCodePage = () => {
         views: 0,
         featureRank: 0,
         isFeatured: false,
-        isAnonymous,
+        isAnonymous
       };
 
-      console.log("Submitting:", programData);
-      alert("Code submitted successfully!");
+      if (!isAnonymous && !isAuthenticated) {
+        localStorage.setItem('addCodeData', JSON.stringify(programData));
+        return router.push('/login?fromAddCode=true');
+      }
 
-      // Reset form
-      setName("");
-      setDescription("");
-      setJavacode("");
-      setPythoncode("");
-      setHtmlcode("");
+      const response = await api.post("/api/programs", programData);
+      if (response.status === 201) {
+        // Clear form data
+        setName("");
+        setDescription("");
+        setJavacode("");
+        setPythoncode("");
+        setHtmlcode("");
+        setSelectedCategory("");
+        setIsAnonymous(false);
+        
+        // Clear any saved drafts
+        localStorage.removeItem('draftCodeData');
+        
+        toast({
+          title: "Code Submitted",
+          description: "Your Code has been successfully submitted.",
+          variant: "success",
+          duration: 5000,
+        });
+        
+        // Redirect to a success page or back to the main page
+        router.push('/successpage '); // Adjust the route as needed
+      }
     } catch (error: any) {
       setError(error.message || "There was an error submitting your contribution.");
+      toast({
+        title: "Submission Failed",
+        description: error.message || "There was an error submitting your contribution.",
+        variant: "destructive",
+        duration: 5000,
+      });
     } finally {
       setLoading(false);
     }
   };
-
-  const handleSave = () => {
-    console.log("Saving draft...");
-    alert("Draft saved!");
-  };
-
-  // Handle program selection from sidebar
-  const handleSelectProgram = (program: Program) => {
-    router.push(`/?programId=${program._id}`);
-  };
-
-  // Handle closing sidebar when clicking on main content
-  const handleContentClick = () => {
-    if (isSidebarOpen) {
-      setIsSidebarOpen(false);
-    }
-  };
-
-  // Placeholder functions for job-related actions
-  const handleShowPostJob = () => {
-    console.log("Show post job");
-    // Add your post job logic here
-  };
-
-  const handleShowApplyJob = () => {
-    console.log("Show apply job");
-    // Add your apply job logic here
-  };
-
-  const handleCategorySelect = (value: string) => {
-    setSelectedCategory(value);
-    setIsDropdownOpen(false);
-  };
-
-  const selectedCategoryObj = categories.find(cat => cat.value === selectedCategory) || categories[0];
 
   const highlightCode = (code: string, language: string) => (
     <Highlight theme={themes.oneLight} code={code} language={language}>
@@ -138,253 +238,230 @@ const AddCodePage = () => {
   );
 
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-[#F5F5F5] flex flex-col">
       <Header isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
       {/* Sidebar Component */}
       {isMobile && 
         <Sidebar
-        isSidebarOpen={isSidebarOpen}
-        onSelectProgram={handleSelectProgram}
-        onCloseSidebar={() => setIsSidebarOpen(false)}
-        onShowPostJob={handleShowPostJob}
-        onShowApplyJob={handleShowApplyJob}
-      />}
-
-      {/* Main Content */}
-      <div className="flex-1 pt-16 sm:pt-20 overflow-hidden">
+          isSidebarOpen={isSidebarOpen}
+          onSelectProgram={handleSelectProgram}
+          onCloseSidebar={() => setIsSidebarOpen(false)}
+          onShowPostJob={handleShowPostJob}
+          onShowApplyJob={handleShowApplyJob}
+        />}
+      
+      <div className="flex-1 pt-16 sm:pt-13">
         {/* Main content wrapper with proper padding for sidebar */}
-        <div 
-          className={`h-full transition-all duration-300 ${
-            isSidebarOpen && !isMobile ? 'xl:ml-64' : ''
-          }`}
-          onClick={handleContentClick}
-        >
-          <div className="h-full max-w-6xl mx-auto px-3 sm:px-6 py-3 overflow-y-auto">
+        <div onClick={handleContentClick}>
+          <div className="max-w-4xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
             {/* Page Header */}
-            <div className="mb-4">
-              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Add Code
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Share your code snippets with the BeCopy community
-              </p>
+            <div className="mb-3 sm:mb-4 flex justify-between items-start">
+              <div>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
+                  Add New Code
+                </h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Share your code snippets with the community
+                </p>
+              </div>
+              
+              {/* Load Draft Button */}
+              <button
+                type="button"
+                onClick={loadDraft}
+                className="text-sm px-3 py-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors duration-200"
+              >
+                Load Draft
+              </button>
             </div>
 
-            {/* Form Container - Enhanced Design */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20">
-              <form onSubmit={handleSubmit} className="p-4 sm:p-5">
-                <div className="space-y-4">
-                  
-                  {/* Title and Category - Side by side */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="relative">
-                      <input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Title *"
-                        maxLength={200}
-                        required
-                        className="w-full h-11 px-4 text-sm bg-white/50 backdrop-blur-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 rounded-lg pointer-events-none"></div>
-                    </div>
-                    
-                    {/* Enhanced Dropdown */}
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        className="w-full h-11 px-4 text-sm bg-white/50 backdrop-blur-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 flex items-center justify-between hover:bg-white/70"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <span className="text-base">{selectedCategoryObj.icon}</span>
-                          <span className={selectedCategory ? "text-gray-900" : "text-gray-400"}>
-                            {selectedCategoryObj.label}
-                          </span>
-                        </div>
-                        <svg
-                          className={`w-4 h-4 transition-transform duration-200 ${
-                            isDropdownOpen ? "rotate-180" : ""
-                          }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      
-                      {/* Dropdown Menu */}
-                      {isDropdownOpen && (
-                        <div className="absolute top-12 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border border-gray-200 rounded-lg shadow-xl overflow-hidden">
-                          {categories.map((category, index) => (
-                            <button
-                              key={category.value}
-                              type="button"
-                              onClick={() => handleCategorySelect(category.value)}
-                              className={`w-full px-4 py-3 text-sm text-left hover:bg-blue-50 transition-colors duration-150 flex items-center space-x-3 ${
-                                selectedCategory === category.value ? "bg-blue-50 text-blue-600" : "text-gray-700"
-                              } ${index === 0 ? "text-gray-400" : ""}`}
-                            >
-                              <span className="text-base">{category.icon}</span>
-                              <span>{category.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 rounded-lg pointer-events-none"></div>
-                    </div>
+            {/* Form Container */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+              <form onSubmit={handleSubmit} className="p-3 sm:p-4 lg:p-6">
+                <div className="space-y-4 sm:space-y-5">
+                  {/* Title Input */}
+                  <div>
+                    <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+                      Title <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="title"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter a descriptive title for your code"
+                      maxLength={200}
+                      required
+                      disabled={loading}
+                      className="w-full h-10 sm:h-11 px-3 text-sm sm:text-base border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{name.length}/200 characters</p>
                   </div>
 
-                  {/* Description - Enhanced */}
-                  <div className="relative">
-                    <textarea
+                  {/* Description Input */}
+                  <div>
+                    <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+                      Description <span className="text-red-500">*</span>
+                    </label>
+                    <Textarea
+                      id="description"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      rows={3}
+                      rows={isMobile ? 4 : 6}
                       maxLength={5000}
                       required
-                      placeholder="Description *"
-                      className="w-full px-4 py-3 text-sm bg-white/50 backdrop-blur-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all duration-200 placeholder-gray-400"
+                      disabled={loading}
+                      className="resize-none w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      placeholder="Describe what your code does and how to use it"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 rounded-lg pointer-events-none"></div>
+                    <p className="text-xs text-gray-500 mt-1">{description.length}/5000 characters</p>
                   </div>
 
-                  {/* Code Editors - Horizontal Layout for Desktop */}
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {/* Java */}
-                    <div className="relative">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center space-x-2">
-                        <span className="text-orange-600">☕</span>
-                        <span>Java</span>
+                  {/* Code Editors */}
+                  <div className="space-y-4 sm:space-y-5">
+                    {/* Java Code */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-semibold">Java</span>
+                        Java Code
                       </label>
-                      <div className="rounded-lg border border-gray-200 overflow-hidden bg-white/70 backdrop-blur-sm shadow-sm">
+                      <div className="rounded-md border border-gray-300 overflow-hidden hover:border-blue-400 transition-colors bg-white">
                         <Editor
-                          className="text-xs"
                           value={javacode}
                           onValueChange={setJavacode}
                           highlight={(code) => highlightCode(code, "java")}
-                          padding={12}
+                          padding={16}
+                          disabled={loading}
                           style={{
                             fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                            fontSize: "11px",
-                            backgroundColor: "transparent",
+                            fontSize: "14px",
+                            backgroundColor: "#fafafa",
                             minHeight: "120px",
-                            outline: "none",
+                            outline: "none"
                           }}
-                          placeholder="// Java code here..."
+                          placeholder="// Enter your Java code here..."
                         />
                       </div>
                     </div>
 
-                    {/* Python */}
-                    <div className="relative">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center space-x-2">
-                        <span className="text-blue-600">🐍</span>
-                        <span>Python</span>
+                    {/* Python Code */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold">Python</span>
+                        Python Code
                       </label>
-                      <div className="rounded-lg border border-gray-200 overflow-hidden bg-white/70 backdrop-blur-sm shadow-sm">
+                      <div className="rounded-md border border-gray-300 overflow-hidden hover:border-blue-400 transition-colors bg-white">
                         <Editor
-                          className="text-xs"
                           value={pythoncode}
                           onValueChange={setPythoncode}
                           highlight={(code) => highlightCode(code, "python")}
-                          padding={12}
+                          padding={16}
+                          disabled={loading}
                           style={{
                             fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                            fontSize: "11px",
-                            backgroundColor: "transparent",
+                            fontSize: "14px",
+                            backgroundColor: "#fafafa",
                             minHeight: "120px",
-                            outline: "none",
+                            outline: "none"
                           }}
-                          placeholder="# Python code here..."
+                          placeholder="# Enter your Python code here..."
                         />
                       </div>
                     </div>
 
-                    {/* HTML */}
-                    <div className="relative">
-                      <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center space-x-2">
-                        <span className="text-red-600">🌐</span>
-                        <span>HTML</span>
+                    {/* HTML Code */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">HTML</span>
+                        HTML Code
                       </label>
-                      <div className="rounded-lg border border-gray-200 overflow-hidden bg-white/70 backdrop-blur-sm shadow-sm">
+                      <div className="rounded-md border border-gray-300 overflow-hidden hover:border-blue-400 transition-colors bg-white">
                         <Editor
-                          className="text-xs"
                           value={htmlcode}
                           onValueChange={setHtmlcode}
                           highlight={(code) => highlightCode(code, "html")}
-                          padding={12}
+                          padding={16}
+                          disabled={loading}
                           style={{
                             fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-                            fontSize: "11px",
-                            backgroundColor: "transparent",
+                            fontSize: "14px",
+                            backgroundColor: "#fafafa",
                             minHeight: "120px",
-                            outline: "none",
+                            outline: "none"
                           }}
-                          placeholder="<!-- HTML code here... -->"
+                          placeholder="<!-- Enter your HTML code here... -->"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Anonymous Toggle - Enhanced */}
-                  <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-gray-700 text-sm font-medium">Show name publicly</span>
-                      <span className="text-xs text-gray-500">Toggle to remain anonymous</span>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isAnonymous}
-                        onChange={(e) => setIsAnonymous(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300/50 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 shadow-sm"></div>
-                    </label>
+                  {/* Category Select - Uncommented if needed */}
+                  {/* <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                    <CategorySelect
+                      value={selectedCategory}
+                      onChange={(e: any) => setSelectedCategory(e.target.value)}
+                    />
+                  </div> */}
+
+                  {/* Anonymous Toggle */}
+                  <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <BootstrapSwitch 
+                      checked={isAnonymous} 
+                      onChange={(isChecked) => setIsAnonymous(isChecked)} 
+                      label="Do you want your name to be publicly shown with the submitted code on the BeCopy website?" 
+                    />
                   </div>
 
                   {/* Error Message */}
                   {error && (
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-red-600 text-sm flex items-center space-x-2">
-                        <span>⚠️</span>
-                        <span>{error}</span>
-                      </p>
+                    <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                      <div className="text-red-800 text-sm">{error}</div>
                     </div>
                   )}
                 </div>
 
-                {/* Action Buttons - Enhanced */}
+                {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 mt-6">
-                  <button
+                  <Button
                     type="button"
                     onClick={handleSave}
-                    className="flex-1 h-11 text-sm font-medium border-2 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
+                    variant="outline"
+                    className="flex-1 h-10 sm:h-11 text-sm font-medium border-gray-300 text-gray-700 hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     disabled={loading}
                   >
-                    <span>💾</span>
-                    <span>Save as Draft</span>
-                  </button>
-                  <button
-                    type="submit"
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Draft
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBack}
+                    className="flex-1 h-10 sm:h-11 text-sm font-medium border-gray-300 text-gray-700 hover:bg-gray-50"
                     disabled={loading}
-                    className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-11 text-sm font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back
+                  </Button>
+                  
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white h-10 sm:h-11 text-sm font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    disabled={loading}
                   >
                     {loading ? (
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                         <span>Submitting...</span>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-center space-x-2">
-                        <span>🚀</span>
-                        <span>Submit Code</span>
-                      </div>
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Submit Code
+                      </>
                     )}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>
@@ -401,16 +478,7 @@ const AddCodePage = () => {
         />
       )}
 
-      {/* Click outside to close dropdown */}
-      {isDropdownOpen && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setIsDropdownOpen(false)}
-        />
-      )}
-
-      {/* Footer */}
-      <div className="shrink-0">
+      <div className="pb-2">
         <Footer />
       </div>
     </div>
