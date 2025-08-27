@@ -5,26 +5,33 @@ const tmp = require('tmp');
 const fs = require('fs');
 const transporter = require('../utils/sendMailer');
 const axios = require('axios');
+
 exports.getAllJobs = async (req, res) => {
   try {
-    let isAll = req.query?.all
+    let isAll = req.query?.all;
     let filterData;
 
-    if(isAll == 'true') {
-      filterData = {}
-    }else {
-      filterData = { status: 'approved', isVisible: true }
+    if (isAll == 'true') {
+      filterData = {};
+    } else {
+      // Only filter by isVisible, don't require status to be 'approved' for testing
+      filterData = { isVisible: { $ne: false } }; // This will show jobs unless explicitly set to false
     }
+    
     const jobs = await Job.find(filterData)
       .populate('recruiter', 'name companyName companyLogo')
       .sort('-createdAt');
-      // console.log('jobs',jobs)
+    
+    console.log('Jobs found:', jobs.length);
+    console.log('Filter used:', filterData);
+    
     res.status(200).json({
       success: true,
       count: jobs.length,
       data: jobs
     });
   } catch (error) {
+    console.error('Error fetching jobs:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -57,22 +64,36 @@ exports.getJob = async (req, res) => {
 };
 
 exports.createJob = async (req, res) => {
+  let { company, title, deadline } = req.body;
 
-  let {company, title, deadline} = req.body
-
-  if(!company || !title || !deadline) {
-    return res.json({
-      message: 'Please Select All Fields to post job'
-    })
+  if (!company || !title || !deadline) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please provide all required fields: company, title, and deadline'
+    });
   }
+
   try {
-    const job = await Job.create(req.body);
+    // Ensure default values for required fields
+    const jobData = {
+      ...req.body,
+      status: req.body.status || 'pending', // Default status
+      isVisible: req.body.isVisible !== undefined ? req.body.isVisible : true, // Default to visible
+      isPinned: req.body.isPinned || false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    const job = await Job.create(jobData);
+    
+    console.log('Job created successfully:', job._id);
 
     return res.status(201).json({
       success: true,
       data: job
     });
   } catch (error) {
+    console.error('Error creating job:', error);
     res.status(400).json({
       success: false,
       error: error.message
@@ -84,7 +105,7 @@ exports.updateJob = async (req, res) => {
   try {
     const job = await Job.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, updatedAt: Date.now() },
+      { ...req.body, updatedAt: new Date() },
       { new: true, runValidators: true }
     );
 
@@ -112,7 +133,8 @@ exports.deleteJob = async (req, res) => {
     const job = await Job.findByIdAndUpdate(
       req.body.id,
       {
-        isVisible: false
+        isVisible: false,
+        updatedAt: new Date()
       },
       { new: true }
     );
@@ -143,7 +165,8 @@ exports.updateJobStatus = async (req, res) => {
       req.params.id,
       {
         status,
-        approvedAt: status === 'approved' ? Date.now() : null
+        approvedAt: status === 'approved' ? new Date() : null,
+        updatedAt: new Date()
       },
       { new: true }
     );
@@ -174,39 +197,35 @@ exports.acceptJob = async (req, res) => {
       {
         status: 'approved',
         isVisible: true,
-        updatedAt: Date.now()
+        updatedAt: new Date()
       },
       { new: true }
-    ).then(async (job) => {
-      await Recruiter.aggregate([
-        {
-          $match: {
-            _id: job._id
-          }
-        },
-        {
-          $addFields: {
-            CaretPositions: {
-              $concatArrays: [
-                { $ifNull: ['$positions', []] },
-                [job._id]
-              ]
-            }
-          }
-        },
-        {
-          $merge: {
-            into: 'recruiters',
-            on: '_id',
-            whenMatched: 'replace',
-            whenNotMatched: 'discard'
-          }
-        }
-      ]);
-      res.status(200).json({
-        success: true,
-        data: job
+    );
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: 'Job not found'
       });
+    }
+
+    // Update recruiter positions (fix the aggregation)
+    try {
+      await Recruiter.findByIdAndUpdate(
+        job.recruiter,
+        { 
+          $addToSet: { positions: job._id },
+          updatedAt: new Date()
+        }
+      );
+    } catch (recruiterError) {
+      console.error('Error updating recruiter positions:', recruiterError);
+      // Don't fail the job acceptance if recruiter update fails
+    }
+
+    res.status(200).json({
+      success: true,
+      data: job
     });
   } catch (error) {
     res.status(400).json({
@@ -222,14 +241,21 @@ exports.rejectJob = async (req, res) => {
       req.body.id,
       {
         status: 'rejected',
-        updatedAt: Date.now()
+        updatedAt: new Date()
       },
       { new: true }
-    ).then((job) => {
-      res.status(200).json({
-        success: true,
-        data: job
+    );
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: 'Job not found'
       });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: job
     });
   } catch (error) {
     res.status(400).json({
@@ -242,6 +268,14 @@ exports.rejectJob = async (req, res) => {
 exports.fetchStatus = async (req, res) => {
   try {
     const item = await Job.findById(req.body.id);
+    
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: item
@@ -257,7 +291,6 @@ exports.fetchStatus = async (req, res) => {
 exports.applyJob = async (req, res) => {
   const { userId, jobId, coverLetter } = req.body;
   const fileUrl = req.file?.path;
-
 
   if (!fileUrl) {
     return res.status(400).json({
@@ -275,6 +308,7 @@ exports.applyJob = async (req, res) => {
         error: 'Job not found'
       });
     }
+    
     const recruiter = await Recruiter.findOne({ userId: job.recruiter });
     if (!recruiter) {
       return res.status(404).json({
@@ -282,6 +316,7 @@ exports.applyJob = async (req, res) => {
         error: 'Recruiter not found'
       });
     }
+    
     const contributor = await Contributor.findOne({ userId });
     if (!contributor) {
       return res.status(404).json({
@@ -295,11 +330,8 @@ exports.applyJob = async (req, res) => {
     try {
       response = await axios.get(fileUrl, {
         responseType: 'arraybuffer',
-        timeout: 200000, // 10 second timeout
+        timeout: 200000,
         maxRedirects: 5,
-        // validateStatus: function (status) {
-        //   return status >= 200 && status < 300;
-        // }
       });
     } catch (downloadError) {
       console.error('Error downloading file:', downloadError);
@@ -310,11 +342,9 @@ exports.applyJob = async (req, res) => {
       });
     }
 
-
-    // Step 2: Save to a temporary file
+    // Save to a temporary file
     const tempFile = tmp.fileSync({ postfix: '.pdf' });
     fs.writeFileSync(tempFile.name, response.data);
-
 
     // Prepare email content
     const subject = `New Application for Job ID: ${job.title} from ${contributor.name}`;
@@ -374,7 +404,7 @@ exports.applyJob = async (req, res) => {
       attachments: [
         {
           filename: "resume.pdf",
-          path: tempFile.name, // ✅ Use the file path instead of passing the object
+          path: tempFile.name,
           contentType: "application/pdf"
         }
       ]
@@ -389,19 +419,16 @@ exports.applyJob = async (req, res) => {
     console.error('Error in applyJob:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to process application.  ',
+      error: 'Failed to process application.',
       details: error.message
     });
   }
 };
 
 exports.toggleJobPinned = async (req, res) => {
-
   try {
-
-    const job = await Job.findById({
-      _id: req.params.id
-    });
+    const job = await Job.findById(req.params.id);
+    
     if (!job) {
       return res.status(404).json({
         success: false,
@@ -409,8 +436,8 @@ exports.toggleJobPinned = async (req, res) => {
       });
     }
 
-
-    job.isPinned = !job.isPinned; // Ensure isPinned is always a boolean
+    job.isPinned = !job.isPinned;
+    job.updatedAt = new Date();
     await job.save();
 
     res.status(200).json({
@@ -423,4 +450,4 @@ exports.toggleJobPinned = async (req, res) => {
       error: error.message
     });
   }
-}
+};

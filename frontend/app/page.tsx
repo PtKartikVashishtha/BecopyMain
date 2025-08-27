@@ -16,7 +16,6 @@ import { HELLO_DEVELOPER } from "@/constants";
 // Dynamic imports with SSR disabled for components causing issues
 const CodeCard = dynamic(() => import("@/components/custom/code-card"), { ssr: false });
 const ChatGPTCard = dynamic(() => import("@/components/custom/chatgpt-card"), { ssr: false });
-const AskGPTDialog = dynamic(() => import("@/components/dialog/ask-gpt-dialog"), { ssr: false });
 const Header = dynamic(() => import("@/components/layout/header"), { ssr: false });
 const Footer = dynamic(() => import("@/components/layout/footer"), { ssr: false });
 const CodeDialog = dynamic(() => import("@/components/dialog/code-dialog"), { ssr: false });
