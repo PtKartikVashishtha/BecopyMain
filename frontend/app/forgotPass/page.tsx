@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -20,6 +20,9 @@ import Header from "@/components/layout/header";
 type resetMode = "sendCode" | "matchCode" | "changePass" | "done";
 
 export default function ForgotPass() {
+  // 1. Added mounting state for hydration fix
+  const [isMounted, setIsMounted] = useState(false);
+  
   const [mode, setMode] = useState<resetMode>("sendCode");
   const [codeResent, setCodeResent] = useState<boolean>(false);
   const [formData, setFormData] = useState({
@@ -28,9 +31,17 @@ export default function ForgotPass() {
     password: "",
     confirmPassword: "",
   });
-  let router = useRouter();
+  const router = useRouter(); // 2. Removed 'let' declaration
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // 3. Added useEffect for mounting state
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // 4. Added early return to prevent hydration mismatch
+  if (!isMounted) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,22 +50,25 @@ export default function ForgotPass() {
     try {
       if (mode === "done") {
         router.push("/login");
+        return; // 5. Added return for early exit
       }
 
       if (mode === "sendCode") {
         await authService.sendResetCode({ email: formData.email });
         setMode("matchCode");
+        return; // 6. Added return for early exit
       }
 
       if (mode === "matchCode") {
-        let res = await authService.matchCode({
+        const res = await authService.matchCode({ // 7. Changed 'let' to 'const'
           code: formData.code,
           email: formData.email,
         });
-        console.log("resonse", res);
+        console.log("response", res); // 8. Fixed typo
         if (res.status === 200) {
           setError("");
-          return setMode("changePass");
+          setMode("changePass");
+          return;
         }
       }
 
@@ -65,25 +79,28 @@ export default function ForgotPass() {
           password: formData.password,
           confirmPassword: formData.confirmPassword,
         });
-
         setMode("done");
       }
-    } catch (error: object | any) {
-      setError(error?.message);
+    } catch (error: any) { // 9. Simplified error typing
+      setError(error?.message || "An error occurred");
     } finally {
       setLoading(false);
     }
   };
 
-  let handleResendCode = async (e: React.FormEvent) => {
+  const handleResendCode = async (e: React.FormEvent) => { // 10. Removed 'let' declaration
     e.preventDefault();
-    await authService.sendResetCode({ email: formData.email });
-    setCodeResent(true);
+    try {
+      await authService.sendResetCode({ email: formData.email });
+      setCodeResent(true);
+    } catch (error: any) {
+      setError(error?.message || "Failed to resend code");
+    }
   };
 
   return (
     <>
-      <Header isSidebarOpen={false} toggleSidebar={() => { }} />
+      <Header isSidebarOpen={false} toggleSidebar={() => {}} />
       <div className="flex min-h-screen w-full items-center justify-center p-6 md:p-10">
         <div className="w-full max-w-sm">
           <Card className="flex flex-col gap-6">
@@ -99,10 +116,10 @@ export default function ForgotPass() {
                     <p>Congratulations, Password Changed Successfully</p>
                     <Button
                       type="submit"
-                      className="w-full w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF] text-white"
+                      className="w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF] text-white" // 11. Removed duplicate w-full
                       disabled={loading}
                     >
-                      {loading ? "Loading..." : "Login In Now"}
+                      {loading ? "Loading..." : "Log In Now"} {/* 12. Fixed text */}
                     </Button>
                   </>
                 ) : (
@@ -132,7 +149,7 @@ export default function ForgotPass() {
                           onChange={(e) =>
                             setFormData({
                               ...formData,
-                              code: parseInt(e.target.value),
+                              code: parseInt(e.target.value) || 0, // 13. Added fallback for NaN
                             })
                           }
                           required
@@ -140,12 +157,12 @@ export default function ForgotPass() {
                         />
 
                         {!codeResent ? (
-                          <Button onClick={handleResendCode}>
+                          <Button type="button" onClick={handleResendCode}> {/* 14. Added type="button" */}
                             Resend Code
                           </Button>
                         ) : (
                           <p className="text-green-500 text-sm text-center">
-                            {"We've"} Resend the verification code
+                            {"We've"} resent the verification code {/* 15. Fixed capitalization */}
                           </p>
                         )}
                       </>
@@ -190,7 +207,7 @@ export default function ForgotPass() {
 
                     <Button
                       type="submit"
-                      className="w-full w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF] text-white"
+                      className="w-full mt-2 bg-[#0284DA] hover:bg-[#0284FF] text-white" // 16. Removed duplicate w-full
                       disabled={loading}
                     >
                       {loading ? (

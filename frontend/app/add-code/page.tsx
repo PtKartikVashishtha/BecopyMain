@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Highlight, themes } from "prism-react-renderer";
 import Editor from "react-simple-code-editor";
@@ -18,6 +18,7 @@ type Program = {
 };
 
 const AddCodePage = () => {
+  const [isMounted, setIsMounted] = useState(false);
   const [javacode, setJavacode] = useState("");
   const [pythoncode, setPythoncode] = useState("");
   const [htmlcode, setHtmlcode] = useState("");
@@ -31,7 +32,12 @@ const AddCodePage = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const router = useRouter();
-  const isMobile = useMediaQuery({ maxWidth: 640 });
+  const rawIsMobile = useMediaQuery({ maxWidth: 640 });
+  const isMobile = isMounted && rawIsMobile;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const categories = [
     { value: "", label: "Select a category", icon: "📁" },
@@ -136,6 +142,11 @@ const AddCodePage = () => {
       )}
     </Highlight>
   );
+
+  // Don't render until mounted to prevent hydration mismatch
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col overflow-hidden">

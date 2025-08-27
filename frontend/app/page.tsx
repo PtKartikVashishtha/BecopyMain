@@ -1,18 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import CodeCard from "@/components/custom/code-card";
-import ChatGPTCard from "@/components/custom/chatgpt-card";
-import Header from "@/components/layout/header";
-import Footer from "@/components/layout/footer";
-import CodeDialog from "@/components/dialog/code-dialog";
-import FeedbackDialog from "@/components/dialog/feedback-dialog";
-import JobPostingDialog from "@/components/dialog/jobposting-dialog";
-import { ApplyJobDialog } from "@/components/dialog/applyjob-dialog";
-import Sidebar from "@/components/layout/sidebar";
-import Recruiters from "@/components/sections/recruiters";
-import Contributors from "@/components/sections/contributors";
-import Quizes from "@/components/sections/quizes";
+import dynamic from "next/dynamic";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { fetchCategories } from "@/store/reducers/categorySlice";
 import { fetchDashboardString } from "@/store/reducers/dashStringSlice";
@@ -24,11 +13,33 @@ import { fetchSettings } from "@/store/reducers/settingSlice";
 import { useSearchParams } from "next/navigation";
 import { HELLO_DEVELOPER } from "@/constants";
 
+// Dynamic imports with SSR disabled for components causing issues
+const CodeCard = dynamic(() => import("@/components/custom/code-card"), { ssr: false });
+const ChatGPTCard = dynamic(() => import("@/components/custom/chatgpt-card"), { ssr: false });
+const Header = dynamic(() => import("@/components/layout/header"), { ssr: false });
+const Footer = dynamic(() => import("@/components/layout/footer"), { ssr: false });
+const CodeDialog = dynamic(() => import("@/components/dialog/code-dialog"), { ssr: false });
+const FeedbackDialog = dynamic(() => import("@/components/dialog/feedback-dialog"), { ssr: false });
+const JobPostingDialog = dynamic(() => import("@/components/dialog/jobposting-dialog"), { ssr: false });
+const ApplyJobDialog = dynamic(() => import("@/components/dialog/applyjob-dialog").then(mod => ({ default: mod.ApplyJobDialog })), { ssr: false });
+const Sidebar = dynamic(() => import("@/components/layout/sidebar"), { ssr: false });
+const Recruiters = dynamic(() => import("@/components/sections/recruiters"), { ssr: false });
+const Contributors = dynamic(() => import("@/components/sections/contributors"), { ssr: false });
+const Quizes = dynamic(() => import("@/components/sections/quizes"), { ssr: false });
+
 export default function Home() {
   const [selectedLanguage, setSelectedLanguage] = useState("");
+  const [isClient, setIsClient] = useState(false);
+
+  // Ensure client-side rendering
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Add targeted CSS override for code cards only
   useEffect(() => {
+    if (!isClient) return;
+    
     const style = document.createElement("style");
     style.textContent = `
       .code-cards-container * {
@@ -47,7 +58,7 @@ export default function Home() {
     return () => {
       document.head.removeChild(style);
     };
-  }, []);
+  }, [isClient]);
 
   const dispatch = useAppDispatch();
   const [copied, setCopied] = useState(false);
@@ -57,11 +68,13 @@ export default function Home() {
   const programId = searchParams.get("programId") || null;
 
   useEffect(() => {
+    if (!isClient) return;
+    
     dispatch(fetchCategories());
     dispatch(fetchDashboardString());
     dispatch(fetchPrograms());
     dispatch(fetchSettings());
-  }, [dispatch]);
+  }, [dispatch, isClient]);
 
   const { user } = useAuth();
   const [showFeedback, setShowFeedback] = useState(false);
@@ -113,11 +126,11 @@ export default function Home() {
 
   useEffect(() => {
     if (isMobile && !programId) setIsSidebarOpen(true);
-  }, [isMobile]);
+  }, [isMobile, programId]);
 
   useEffect(() => {
     if (showDialog && selectedLanguage.length > 0) setIsOpen(true);
-  }, [showDialog]);
+  }, [showDialog, selectedLanguage]);
 
   const handleCopyCode = async () => {
     if (selectedProgram.name === "") return;
@@ -132,6 +145,15 @@ export default function Home() {
   };
 
   const removeBackticks = (code: string) => code.replace(/`/g, "");
+
+  // Show loading state until client-side hydration
+  if (!isClient) {
+    return (
+      <div className="min-h-[80vh] bg-[#f5f5f5] flex items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[80vh] bg-[#f5f5f5]">

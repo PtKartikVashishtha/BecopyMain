@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ChevronDown, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -22,6 +22,7 @@ type Program = {
 export default function ApplyJobPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const [selectedJob, setSelectedJob] = useState("");
@@ -32,17 +33,35 @@ export default function ApplyJobPage() {
 
   const jobsState = useAppSelector((state) => state.jobs);
   const jobs = jobsState.items;
-  const isMobile = useMediaQuery({ maxWidth: 640 });
+  
+  const rawIsMobile = useMediaQuery({ maxWidth: 640 });
+  const isMobile = isMounted && rawIsMobile;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (jobs.length === 0 && isMounted) {
+      dispatch(fetchJobs());
+    }
+  }, [dispatch, jobs.length, isMounted]);
+
+  // Memoize calculations to improve performance
+  const characterCount = useMemo(() => coverLetter.length, [coverLetter]);
+  
+  // Prevent hydration mismatch
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+      </div>
+    );
+  }
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
-
-  useEffect(() => {
-    if (jobs.length === 0) {
-      dispatch(fetchJobs());
-    }
-  }, [dispatch, jobs.length]);
 
   // Handle program selection from sidebar
   const handleSelectProgram = (program: Program) => {
@@ -186,13 +205,14 @@ export default function ApplyJobPage() {
                       }}
                       placeholder="Briefly explain why you're a good fit for this role..."
                       rows={isMobile ? 4 : 4}
+                      maxLength={1000}
                       className={`w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-900 placeholder-gray-500 text-sm ${
                         errors.coverLetter ? "border-red-500" : ""
                       }`}
                     />
                     {errors.coverLetter && <p className="text-red-500 text-xs mt-1">{errors.coverLetter}</p>}
                     <p className="text-xs text-gray-500 mt-1">
-                      {coverLetter.length}/1000 characters
+                      {characterCount}/1000 characters
                     </p>
                   </div>
 
@@ -215,8 +235,8 @@ export default function ApplyJobPage() {
                           htmlFor="resume-upload"
                           className="cursor-pointer flex flex-col items-center space-y-2 sm:space-y-3"
                         >
-                          <div className="w-12 h-12 sm:w-7 sm:h-7 bg-white rounded-full flex items-center justify-center shadow-sm">
-                            <Upload className="w-6 h-6 sm:w-3 sm:h-3 text-gray-400" />
+                          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white rounded-full flex items-center justify-center shadow-sm">
+                            <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" />
                           </div>
                           <div className="text-gray-600">
                             <span className="text-gray-800 font-medium text-sm sm:text-base">
