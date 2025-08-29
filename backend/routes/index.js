@@ -1,4 +1,3 @@
-
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
@@ -13,10 +12,13 @@ const authRoutes = require('./authRoutes');
 const uploadRoutes = require('./uploadRoutes');
 const gptRoutes = require('./gptRoutes');
 const dashboardRoutes = require('./dashboardRouter');
-const settingRoutes = require('./settingRoutes')
+const settingRoutes = require('./settingRoutes');
+const inviteRoutes = require('./inviteRoutes');
+const chatRoutes = require('./chatRoutes');
 
 const {getProfile} = require('../controllers/authController')
 const {updateProfile} = require('../controllers/authController')
+
 // API routes
 router.use('/api/jobs', jobRoutes);
 router.use('/api/contributions', contributionRoutes);
@@ -29,7 +31,9 @@ router.use('/api/auth', authRoutes);
 router.use('/api/upload', uploadRoutes);
 router.use('/api/gpt', gptRoutes);
 router.use('/api/dashboardstring', dashboardRoutes);
-router.use('/api/setting',settingRoutes)
+router.use('/api/setting', settingRoutes);
+router.use('/api/invites', inviteRoutes);
+router.use('/api/chat', chatRoutes);
 
 //direct route
 router.get('/profile', protect, getProfile)
