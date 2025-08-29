@@ -12,17 +12,13 @@ import { useMediaQuery } from "react-responsive";
 import { fetchSettings } from "@/store/reducers/settingSlice";
 import { useSearchParams } from "next/navigation";
 import { HELLO_DEVELOPER } from "@/constants";
-import { fetchUserLocation } from "@/store/reducers/geoSlice";
 
-// Dynamic imports with SSR disabled
+// Dynamic imports with SSR disabled for components causing issues
 const CodeCard = dynamic(() => import("@/components/custom/code-card"), { ssr: false });
 const ChatGPTCard = dynamic(() => import("@/components/custom/chatgpt-card"), { ssr: false });
 const Header = dynamic(() => import("@/components/layout/header"), { ssr: false });
 const Footer = dynamic(() => import("@/components/layout/footer"), { ssr: false });
 const CodeDialog = dynamic(() => import("@/components/dialog/code-dialog"), { ssr: false });
-const FeedbackDialog = dynamic(() => import("@/components/dialog/feedback-dialog"), { ssr: false });
-const JobPostingDialog = dynamic(() => import("@/components/dialog/jobposting-dialog"), { ssr: false });
-const ApplyJobDialog = dynamic(() => import("@/components/dialog/applyjob-dialog").then(mod => ({ default: mod.ApplyJobDialog })), { ssr: false });
 const Sidebar = dynamic(() => import("@/components/layout/sidebar"), { ssr: false });
 const Recruiters = dynamic(() => import("@/components/sections/recruiters"), { ssr: false });
 const Contributors = dynamic(() => import("@/components/sections/contributors"), { ssr: false });
@@ -31,40 +27,13 @@ const Quizes = dynamic(() => import("@/components/sections/quizes"), { ssr: fals
 export default function Home() {
   const [selectedLanguage, setSelectedLanguage] = useState("");
   const [isClient, setIsClient] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [feedbackType, setFeedbackType] = useState<"bug" | "suggestion">("bug");
-  const [showJobPosting, setShowJobPosting] = useState(false);
-  const [showApplyJob, setShowApplyJob] = useState(false);
-  const [showDialog, setShowDialog] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  const dispatch = useAppDispatch();
-  const isMobile = useMediaQuery({ maxWidth: 639 });
-  const searchParams = useSearchParams();
-  const programId = searchParams.get("programId") || null;
 
   // Ensure client-side rendering
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Initialize data on client mount
-  useEffect(() => {
-    if (!isClient) return;
-    
-    console.log('Initializing home page data...');
-    dispatch(fetchCategories());
-    dispatch(fetchDashboardString());
-    dispatch(fetchPrograms());
-    dispatch(fetchSettings());
-    
-    // Initialize location detection
-    dispatch(fetchUserLocation());
-  }, [dispatch, isClient]);
-
-  // Add targeted CSS override for code cards
+  // Add targeted CSS override for code cards only
   useEffect(() => {
     if (!isClient) return;
     
@@ -84,13 +53,32 @@ export default function Home() {
     document.head.appendChild(style);
 
     return () => {
-      if (document.head.contains(style)) {
-        document.head.removeChild(style);
-      }
+      document.head.removeChild(style);
     };
   }, [isClient]);
 
+  const dispatch = useAppDispatch();
+  const [copied, setCopied] = useState(false);
+  const isMobile = useMediaQuery({ maxWidth: 639 }); // sm breakpoint
+
+  const searchParams = useSearchParams();
+  const programId = searchParams.get("programId") || null;
+
+  useEffect(() => {
+    if (!isClient) return;
+    
+    dispatch(fetchCategories());
+    dispatch(fetchDashboardString());
+    dispatch(fetchPrograms());
+    dispatch(fetchSettings());
+  }, [dispatch, isClient]);
+
   const { user } = useAuth();
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackType, setFeedbackType] = useState<"bug" | "suggestion">("bug");
+  const [showJobPosting, setShowJobPosting] = useState(false);
+  const [showApplyJob, setShowApplyJob] = useState(false);
+
   const { items } = useAppSelector((state) => state.programs);
   const settings = useAppSelector((state) => state.settings);
   const categoriesState = useAppSelector((state) => state.categories);
@@ -100,6 +88,11 @@ export default function Home() {
   const [expandedCategories, setExpandedCategories] = useState<string[]>(
     categories.length > 0 ? [categories[0].name] : []
   );
+
+  const [showDialog, setShowDialog] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("");
 
   const selectedProgramInit: Program = {
     _id: "",
@@ -113,64 +106,48 @@ export default function Home() {
   const [selectedProgram, setSelectedProgram] =
     useState<Program>(selectedProgramInit);
 
-  // Handle program selection from URL
+  const handleViewCode = async () => {
+    setShowDialog(true);
+    await dispatch(viewProgram(selectedProgram._id));
+  };
+
   useEffect(() => {
-    if (programId && programState?.items?.length > 0) {
-      const selectedProg = programState.items.find((item) => item._id === programId);
-      if (selectedProg) {
-        setSelectedProgram(selectedProg);
+    if (programId && programState) {
+      let { items } = programState;
+      if (items.length > 0) {
+        let selProg = items.filter((item) => item._id === programId);
+        return setSelectedProgram(selProg[0]);
       }
     }
   }, [programId, programState]);
 
-  // Mobile sidebar auto-open logic
   useEffect(() => {
-    if (isMobile && !programId) {
-      setIsSidebarOpen(true);
-    }
+    if (isMobile && !programId) setIsSidebarOpen(true);
   }, [isMobile, programId]);
 
-  // Dialog management
   useEffect(() => {
-    if (showDialog && selectedLanguage.length > 0) {
-      setIsOpen(true);
-    }
+    if (showDialog && selectedLanguage.length > 0) setIsOpen(true);
   }, [showDialog, selectedLanguage]);
 
-  const handleViewCode = async () => {
-    if (selectedProgram._id) {
-      setShowDialog(true);
-      await dispatch(viewProgram(selectedProgram._id));
-    }
-  };
-
   const handleCopyCode = async () => {
-    if (selectedProgram.name === "" || !selectedProgram._id) return;
-    try {
-      await dispatch(copyProgram(selectedProgram._id));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error('Copy failed:', error);
-    }
+    if (selectedProgram.name === "") return;
+    dispatch(copyProgram(selectedProgram._id));
   };
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   const handleProgramSelect = (program: Program) => {
     setSelectedProgram(program);
-    if (window.innerWidth < 1280) {
-      setIsSidebarOpen(false);
-    }
+    if (window.innerWidth < 1280) setIsSidebarOpen(false);
   };
 
-  const removeBackticks = (code: string) => code?.replace(/`/g, "") || "";
+  const removeBackticks = (code: string) => code.replace(/`/g, "");
 
-  // Loading state until hydration
+  // Show loading state until client-side hydration
   if (!isClient) {
     return (
       <div className="min-h-[80vh] bg-[#f5f5f5] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent"></div>
+        <div className="text-lg">Loading...</div>
       </div>
     );
   }
@@ -183,7 +160,6 @@ export default function Home() {
         setSelectedProgram={setSelectedProgram}
       />
 
-      {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-30 xl:hidden"
@@ -200,13 +176,7 @@ export default function Home() {
             onShowJobPosting={() => setShowJobPosting(true)}
             onShowApplyJob={() => setShowApplyJob(true)}
             onCloseSidebar={() => setIsSidebarOpen(false)}
-            toggleCategory={(categoryName: string) => {
-              setExpandedCategories(prev => 
-                prev.includes(categoryName) 
-                  ? prev.filter(name => name !== categoryName)
-                  : [...prev, categoryName]
-              );
-            }}
+            toggleCategory={() => {}}
           />
 
           <div className="flex-1 xl:ml-64 p-2 sm:p-4 xl:p-6">
@@ -222,7 +192,7 @@ export default function Home() {
                 language="java"
                 title={
                   selectedProgram.name === ""
-                    ? settings?.item?.javaHeading || "Java Code"
+                    ? settings?.item?.javaHeading
                     : selectedProgram.name
                 }
                 defaultCode={settings?.item?.javaCode}
@@ -254,7 +224,7 @@ export default function Home() {
                 language="python"
                 title={
                   selectedProgram.name === ""
-                    ? settings?.item?.pythonHeading || "Python Code"
+                    ? settings?.item?.pythonHeading
                     : selectedProgram.name
                 }
                 clickFunc={setSelectedLanguage}
@@ -285,7 +255,7 @@ export default function Home() {
                 language="html"
                 title={
                   selectedProgram.name === ""
-                    ? settings?.item?.htmlHeading || "HTML Code"
+                    ? settings?.item?.htmlHeading
                     : selectedProgram.name
                 }
                 clickFunc={setSelectedLanguage}
@@ -332,8 +302,7 @@ export default function Home() {
           </div>
         </div>
       </div>
-      
-      <div className="pb-1">
+      <div className=" pb-1">
         <Footer />
       </div>
 
@@ -352,14 +321,14 @@ export default function Home() {
         code={
           selectedLanguage === "java"
             ? selectedProgram.name === ""
-              ? HELLO_DEVELOPER?.java || ""
+              ? HELLO_DEVELOPER.java
               : removeBackticks(selectedProgram.code?.java)
             : selectedLanguage === "python"
             ? selectedProgram.name === ""
-              ? HELLO_DEVELOPER?.python || ""
+              ? HELLO_DEVELOPER.python
               : removeBackticks(selectedProgram.code?.python)
             : selectedProgram.name === ""
-            ? HELLO_DEVELOPER?.html || ""
+            ? HELLO_DEVELOPER.html
             : removeBackticks(selectedProgram.code?.html)
         }
         title={
@@ -367,16 +336,6 @@ export default function Home() {
         }
         copyCode={handleCopyCode}
       />
-
-      <FeedbackDialog
-        type={feedbackType}
-        programId={selectedProgram._id}
-        open={showFeedback}
-        onOpenChange={setShowFeedback}
-        selectedProgram={selectedProgram}
-      />
-      <JobPostingDialog open={showJobPosting} onOpenChange={setShowJobPosting} />
-      <ApplyJobDialog open={showApplyJob} onOpenChange={setShowApplyJob} />
     </div>
   );
 }

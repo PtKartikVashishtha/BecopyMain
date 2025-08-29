@@ -202,23 +202,7 @@ export default function EnhancedJobs() {
   const filteredRecruiters = useMemo(() => {
     let recruiters = recruiterItems.items || [];
     
-    if (geoMode && userLocation && userLocation.latitude && userLocation.longitude && userLocation.country !== 'Unknown') {
-      recruiters = recruiters.filter((recruiter) => {
-        // If recruiter has coordinates, use distance calculation
-        if (recruiter.latitude && recruiter.longitude) {
-          return isWithinRadius(
-            userLocation.latitude,
-            userLocation.longitude,
-            recruiter.latitude,
-            recruiter.longitude,
-            radiusKm
-          );
-        }
-        // Text-based matching as fallback
-        return recruiter.country?.toLowerCase() === userLocation.country.toLowerCase() ||
-               recruiter.countryCode?.toLowerCase() === userLocation.countryCode.toLowerCase();
-      });
-    }
+    
     
     return [...recruiters].sort((a, b) => (b.contributions || 0) - (a.contributions || 0));
   }, [recruiterItems.items, geoMode, userLocation, radiusKm]);
@@ -325,11 +309,6 @@ export default function EnhancedJobs() {
               <div className="sticky top-20 w-full border border-gray-200 rounded-md p-3 h-[calc(100vh-6rem)] shadow-md bg-white overflow-y-auto">
                 <h2 className="text-base font-semibold flex items-center mb-3">
                   <Trophy className="w-4 h-4 text-yellow-500 mr-2" /> Top Recruiters
-                  {geoMode && isLocationValid && (
-                    <span className="ml-2 text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">
-                      {getCountryFlag(userLocation.countryCode)} {radiusKm}km
-                    </span>
-                  )}
                 </h2>
                 <ol className="space-y-2">
                   {filteredRecruiters?.slice(0, 15).map((recruiter, index) => (
@@ -341,20 +320,11 @@ export default function EnhancedJobs() {
                         <p className="font-medium text-xs truncate">{recruiter?.name}</p>
                         <p className="text-xs text-gray-500 flex items-center">
                           <Users className="w-3 h-3 mr-1" /> {recruiter?.contributions || 0}
-                          {geoMode && recruiter.city && (
-                            <span className="ml-2 text-xs text-blue-600 truncate">• {recruiter.city}</span>
-                          )}
                         </p>
                       </div>
                     </li>
                   ))}
                 </ol>
-                {geoMode && filteredRecruiters.length === 0 && isLocationValid && (
-                  <div className="text-center mt-4 p-3 bg-gray-50 rounded-lg">
-                    <Target className="w-6 h-6 text-gray-400 mx-auto mb-2" />
-                    <p className="text-xs text-gray-500">No recruiters found within {radiusKm}km</p>
-                  </div>
-                )}
               </div>
             </aside>
           )}
@@ -759,11 +729,6 @@ export default function EnhancedJobs() {
           <div className="bg-white border-t px-4 py-3 flex-shrink-0">
             <h3 className="text-sm font-semibold flex items-center mb-3">
               <Trophy className="w-4 h-4 text-yellow-500 mr-1" /> Top Recruiters
-              {geoMode && isLocationValid && (
-                <span className="ml-2 text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">
-                  {getCountryFlag(userLocation.countryCode)} {radiusKm}km
-                </span>
-              )}
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {filteredRecruiters?.slice(0, 6).map((recruiter, index) => (
@@ -780,11 +745,6 @@ export default function EnhancedJobs() {
                 </div>
               ))}
             </div>
-            {geoMode && filteredRecruiters.length === 0 && isLocationValid && (
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                No recruiters found within {radiusKm}km of your location
-              </p>
-            )}
           </div>
         )}
       </div>

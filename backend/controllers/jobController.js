@@ -5,6 +5,7 @@ const tmp = require('tmp');
 const fs = require('fs');
 const transporter = require('../utils/sendMailer');
 const axios = require('axios');
+const mongoose = require('mongoose');
 
 // IP-based location detection utility
 function getClientIp(req) {
@@ -21,47 +22,60 @@ function getClientIp(req) {
 
   return ip;
 }
+
 const getLocationFromIP = async (ipAddress) => {
   try {
-    // Primary API - ipapi.co
-    const response = await axios.get(`https://ipwho.is/${ipAddress}/json/`, {
-      timeout: 5000
+    // Skip localhost
+    if (!ipAddress || ipAddress === '127.0.0.1' || ipAddress === '::1') {
+      console.log('Localhost detected, skipping IP location detection');
+      return null;
+    }
+
+    console.log('Detecting location for IP:', ipAddress);
+
+    // Primary API - ipwho.is
+    const response = await axios.get(`https://ipwho.is/${ipAddress}`, {
+      timeout: 10000
     });
 
-    if (response.data && response.data.country_name && response.data.latitude) {
-      return {
-        country: response.data.country_name,
+    if (response.data && response.data.success !== false && response.data.latitude) {
+      const locationData = {
+        country: response.data.country,
         countryCode: response.data.country_code,
         region: response.data.region,
         city: response.data.city,
         latitude: parseFloat(response.data.latitude),
         longitude: parseFloat(response.data.longitude),
-        timezone: response.data.timezone,
-        accuracy: 20,
-        source: 'ipapi.co'
-      };
-    }
-
-    // Fallback API - ipwho.is
-    const fallbackResponse = await axios.get(`https://ipwho.is/${ipAddress}`, {
-      timeout: 5000
-    });
-
-    if (fallbackResponse.data && fallbackResponse.data.success !== false) {
-      const data = fallbackResponse.data;
-      return {
-        country: data.country,
-        countryCode: data.country_code,
-        region: data.region,
-        city: data.city,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        timezone: data.timezone?.id,
+        timezone: response.data.timezone?.id,
         accuracy: 50,
         source: 'ipwho.is'
       };
+      console.log('Location detected:', locationData);
+      return locationData;
     }
 
+    // Fallback API - ipapi.co
+    const fallbackResponse = await axios.get(`https://ipapi.co/${ipAddress}/json/`, {
+      timeout: 10000
+    });
+
+    if (fallbackResponse.data && fallbackResponse.data.country_name && fallbackResponse.data.latitude) {
+      const locationData = {
+        country: fallbackResponse.data.country_name,
+        countryCode: fallbackResponse.data.country_code,
+        region: fallbackResponse.data.region,
+        city: fallbackResponse.data.city,
+        latitude: parseFloat(fallbackResponse.data.latitude),
+        longitude: parseFloat(fallbackResponse.data.longitude),
+        timezone: fallbackResponse.data.timezone,
+        accuracy: 20,
+        source: 'ipapi.co'
+      };
+      console.log('Location detected via fallback:', locationData);
+      return locationData;
+    }
+
+    console.log('No location data found for IP:', ipAddress);
     return null;
   } catch (error) {
     console.error('IP location detection failed:', error.message);
@@ -73,7 +87,9 @@ const getLocationFromIP = async (ipAddress) => {
 exports.getAllJobs = async (req, res) => {
   try {
     const isAll = req.query?.all;
-    const { lat, lng, radius = 250, geoMode } = req.query;
+    const { lat, lng, radius = 250, geoMode, userCountry, userCity } = req.query;
+    
+    console.log('getAllJobs called with params:', { lat, lng, radius, geoMode, userCountry, userCity });
     
     let filterData;
     if (isAll === 'true') {
@@ -102,6 +118,8 @@ exports.getAllJobs = async (req, res) => {
       const userLng = parseFloat(lng);
       const radiusKm = parseFloat(radius);
 
+      console.log('Applying geo filter:', { userLat, userLng, radiusKm });
+
       // Add distance calculation and filtering
       pipeline.push(
         {
@@ -121,18 +139,28 @@ exports.getAllJobs = async (req, res) => {
                     6371, // Earth's radius in km
                     {
                       $acos: {
-                        $add: [
+                        $max: [
+                          -1,
                           {
-                            $multiply: [
-                              { $sin: { $multiply: [{ $divide: [userLat, 180] }, Math.PI] } },
-                              { $sin: { $multiply: [{ $divide: ['$latitude', 180] }, Math.PI] } }
-                            ]
-                          },
-                          {
-                            $multiply: [
-                              { $cos: { $multiply: [{ $divide: [userLat, 180] }, Math.PI] } },
-                              { $cos: { $multiply: [{ $divide: ['$latitude', 180] }, Math.PI] } },
-                              { $cos: { $multiply: [{ $divide: [{ $subtract: ['$longitude', userLng] }, 180] }, Math.PI] } }
+                            $min: [
+                              1,
+                              {
+                                $add: [
+                                  {
+                                    $multiply: [
+                                      { $sin: { $multiply: [{ $divide: [userLat, 180] }, Math.PI] } },
+                                      { $sin: { $multiply: [{ $divide: ['$latitude', 180] }, Math.PI] } }
+                                    ]
+                                  },
+                                  {
+                                    $multiply: [
+                                      { $cos: { $multiply: [{ $divide: [userLat, 180] }, Math.PI] } },
+                                      { $cos: { $multiply: [{ $divide: ['$latitude', 180] }, Math.PI] } },
+                                      { $cos: { $multiply: [{ $divide: [{ $subtract: ['$longitude', userLng] }, 180] }, Math.PI] } }
+                                    ]
+                                  }
+                                ]
+                              }
                             ]
                           }
                         ]
@@ -149,15 +177,20 @@ exports.getAllJobs = async (req, res) => {
           $match: {
             $or: [
               { distance: { $lte: radiusKm } }, // Include jobs within radius
+              // Text-based location matching for jobs without coordinates
               {
                 $and: [
-                  { latitude: { $in: [null, 0] } },
-                  { longitude: { $in: [null, 0] } },
-                  // Text-based location matching for jobs without coordinates
                   {
                     $or: [
-                      { country: { $regex: new RegExp(req.query.userCountry || '', 'i') } },
-                      { jobLocation: { $regex: new RegExp(req.query.userCity || '', 'i') } }
+                      { latitude: { $in: [null, 0] } },
+                      { longitude: { $in: [null, 0] } }
+                    ]
+                  },
+                  {
+                    $or: [
+                      { country: { $regex: new RegExp(userCountry || '', 'i') } },
+                      { jobLocation: { $regex: new RegExp(userCity || '', 'i') } },
+                      { city: { $regex: new RegExp(userCity || '', 'i') } }
                     ]
                   }
                 ]
@@ -170,9 +203,9 @@ exports.getAllJobs = async (req, res) => {
 
     // Sort by distance if geo mode is active, otherwise by creation date
     if (geoMode === 'true' && lat && lng) {
-      pipeline.push({ $sort: { distance: 1, createdAt: -1 } });
+      pipeline.push({ $sort: { distance: 1, isPinned: -1, createdAt: -1 } });
     } else {
-      pipeline.push({ $sort: { createdAt: -1 } });
+      pipeline.push({ $sort: { isPinned: -1, createdAt: -1 } });
     }
 
     const jobs = await Job.aggregate(pipeline);
@@ -183,7 +216,8 @@ exports.getAllJobs = async (req, res) => {
       success: true,
       count: jobs.length,
       data: jobs,
-      geoFiltered: geoMode === 'true'
+      geoFiltered: geoMode === 'true',
+      userLocation: geoMode === 'true' ? { lat: parseFloat(lat), lng: parseFloat(lng), radius: parseFloat(radius) } : null
     });
   } catch (error) {
     console.error('Error fetching jobs:', error);
@@ -193,7 +227,8 @@ exports.getAllJobs = async (req, res) => {
     });
   }
 };
-    
+
+// Get single job
 exports.getJob = async (req, res) => {
   try {
     const job = await Job.findById(req.params.id)
@@ -221,24 +256,189 @@ exports.getJob = async (req, res) => {
   }
 };
 
+// Enhanced createJob with proper user/recruiter mapping
 exports.createJob = async (req, res) => {
-  const { company, title, deadline } = req.body;
-
-  if (!company || !title || !deadline) {
-    return res.status(400).json({
-      success: false,
-      message: 'Please provide all required fields: company, title, and deadline'
-    });
-  }
-
   try {
-    // Get IP address from request
-    const ipAddress = getClientIp(req)
+    console.log('=== JOB CREATION REQUEST ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    console.log('Request headers:', req.headers);
 
-    // Auto-detect location from IP if not provided
-    let locationData = {};
-    if (!req.body.latitude && !req.body.longitude && ipAddress && ipAddress !== '127.0.0.1') {
+    // Enhanced validation - check all required fields
+    const requiredFields = ['title', 'company', 'deadline'];
+    const missingFields = requiredFields.filter(field => !req.body[field] || req.body[field].trim() === '');
+    
+    if (missingFields.length > 0) {
+      console.log('Missing required fields:', missingFields);
+      return res.status(400).json({
+        success: false,
+        error: `Missing required fields: ${missingFields.join(', ')}`,
+        details: 'Please provide all required fields'
+      });
+    }
+
+    // Validate field lengths and formats
+    const validationErrors = [];
+    
+    if (req.body.title && req.body.title.length > 200) {
+      validationErrors.push('Title must be less than 200 characters');
+    }
+    
+    if (req.body.company && req.body.company.length > 100) {
+      validationErrors.push('Company name must be less than 100 characters');
+    }
+    
+    if (req.body.description && req.body.description.length > 5000) {
+      validationErrors.push('Description must be less than 5000 characters');
+    }
+
+    // Validate deadline format and future date
+    const deadlineDate = new Date(req.body.deadline);
+    if (isNaN(deadlineDate.getTime())) {
+      validationErrors.push('Invalid deadline format');
+    } else if (deadlineDate <= new Date()) {
+      validationErrors.push('Deadline must be a future date');
+    }
+
+    if (validationErrors.length > 0) {
+      console.log('Validation errors:', validationErrors);
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: validationErrors
+      });
+    }
+
+    // CORRECTED LOGIC: Handle User ID to Recruiter ID mapping
+    let recruiterId = null;
+    if (req.body.recruiter) {
       try {
+        const recruiterIdToCheck = req.body.recruiter.trim();
+        
+        console.log('Validating recruiter ID:', recruiterIdToCheck);
+        
+        // Check if it's a valid ObjectId format first
+        if (!mongoose.Types.ObjectId.isValid(recruiterIdToCheck)) {
+          console.log('Invalid ObjectId format:', recruiterIdToCheck);
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid recruiter ID format',
+            details: 'Recruiter ID must be a valid MongoDB ObjectId'
+          });
+        }
+        
+        // CORRECTED LOGIC: Check if the provided ID is a User ID or Recruiter ID
+        // First, try to find recruiter by the provided ID directly
+        let recruiterExists = await Recruiter.findById(recruiterIdToCheck);
+        
+        if (recruiterExists) {
+          // Direct recruiter ID match
+          console.log('Direct recruiter found:', {
+            recruiterId: recruiterExists._id,
+            recruiterName: recruiterExists.name || 'No name',
+            recruiterEmail: recruiterExists.email || 'No email'
+          });
+          recruiterId = recruiterExists._id;
+        } else {
+          // Not found as recruiter ID, check if it's a User ID
+          console.log('No direct recruiter found, checking if this is a User ID...');
+          
+          // Try to find recruiter by userId field (which maps to user._id)
+          const recruiterByUserId = await Recruiter.findOne({ userId: recruiterIdToCheck });
+          
+          if (recruiterByUserId) {
+            console.log('Found recruiter by userId mapping:', {
+              userId: recruiterIdToCheck,
+              recruiterId: recruiterByUserId._id,
+              recruiterName: recruiterByUserId.name || 'No name',
+              recruiterEmail: recruiterByUserId.email || 'No email'
+            });
+            recruiterId = recruiterByUserId._id;
+          } else {
+            // Check if user exists but has no recruiter profile
+            const User = mongoose.model('User'); // Adjust model name if different
+            let userExists = null;
+            
+            try {
+              userExists = await User.findById(recruiterIdToCheck);
+            } catch (userFindError) {
+              console.log('Error checking user collection:', userFindError.message);
+            }
+            
+            if (userExists) {
+              console.log('User exists but no recruiter profile found:', {
+                userId: userExists._id,
+                userEmail: userExists.email || 'No email',
+                userName: userExists.name || 'No name'
+              });
+              
+              return res.status(400).json({
+                success: false,
+                error: 'Recruiter profile not found',
+                details: `User account exists but no recruiter profile is associated. Please complete your recruiter registration first.`,
+                requiresRecruiterSetup: true
+              });
+            } else {
+              console.log('No user or recruiter found with ID:', recruiterIdToCheck);
+              return res.status(400).json({
+                success: false,
+                error: 'Invalid user/recruiter ID',
+                details: 'No user or recruiter account found with the provided ID'
+              });
+            }
+          }
+        }
+        
+      } catch (recruiterError) {
+        console.error('Error validating recruiter:', recruiterError);
+        return res.status(400).json({
+          success: false,
+          error: 'Error validating recruiter ID',
+          details: `Database error: ${recruiterError.message}`
+        });
+      }
+    } else {
+      console.log('No recruiter ID provided - creating job without recruiter association');
+    }
+
+    // Get IP address for location detection
+    const ipAddress = getClientIp(req);
+    console.log('Client IP detected:', ipAddress);
+
+    // Location detection logic
+    let locationData = {};
+    
+    // Priority 1: Use frontend-provided location data
+    if (req.body.latitude && req.body.longitude) {
+      try {
+        const lat = parseFloat(req.body.latitude);
+        const lng = parseFloat(req.body.longitude);
+        
+        // Validate coordinates are reasonable
+        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+          console.warn('Invalid coordinates provided:', { lat, lng });
+        } else {
+          locationData = {
+            latitude: lat,
+            longitude: lng,
+            country: req.body.country || null,
+            countryCode: req.body.countryCode || null,
+            region: req.body.region || null,
+            city: req.body.city || null,
+            timezone: req.body.timezone || null,
+            locationSource: 'frontend-provided',
+            locationDetectedAt: new Date()
+          };
+          console.log('Using frontend-provided location:', locationData);
+        }
+      } catch (coordError) {
+        console.warn('Error parsing coordinates:', coordError);
+      }
+    }
+    
+    // Priority 2: Auto-detect from IP if no valid coordinates provided
+    if (!locationData.latitude && ipAddress && ipAddress !== '127.0.0.1') {
+      try {
+        console.log('Attempting IP-based location detection...');
         const detectedLocation = await getLocationFromIP(ipAddress);
         if (detectedLocation) {
           locationData = {
@@ -254,57 +454,145 @@ exports.createJob = async (req, res) => {
             locationDetectedAt: new Date(),
             ipAddress: ipAddress
           };
-          console.log('Location auto-detected:', detectedLocation);
+          console.log('Location auto-detected from IP:', locationData);
+        } else {
+          console.log('IP location detection returned no results');
         }
       } catch (locationError) {
         console.warn('IP location detection failed:', locationError.message);
+        // Don't fail job creation due to location detection failure
       }
-    } else if (req.body.latitude && req.body.longitude) {
-      locationData = {
-        latitude: parseFloat(req.body.latitude),
-        longitude: parseFloat(req.body.longitude),
-        locationSource: 'coordinates'
-      };
     }
 
-    // Merge job data with location data
+    // Prepare final job data
     const jobData = {
-      ...req.body,
-      ...locationData,
+      // Core job fields
+      title: req.body.title.trim(),
+      company: req.body.company.trim(),
+      description: req.body.description ? req.body.description.trim() : '',
+      responsibilities: req.body.responsibilities ? req.body.responsibilities.trim() : '',
+      requirements: req.body.requirements ? req.body.requirements.trim() : '',
+      jobLocation: req.body.jobLocation ? req.body.jobLocation.trim() : '',
+      salary: req.body.salary ? req.body.salary.trim() : '',
+      deadline: new Date(req.body.deadline),
+      howtoapply: req.body.howtoapply ? req.body.howtoapply.trim() : '',
+      
+      // Optional fields - Only set recruiter if valid ID found
+      recruiter: recruiterId,
       status: req.body.status || 'pending',
       isVisible: req.body.isVisible !== undefined ? req.body.isVisible : true,
       isPinned: req.body.isPinned || false,
+      remoteWork: req.body.remoteWork || false,
+      jobType: req.body.jobType || '',
+      experienceLevel: req.body.experienceLevel || '',
+      
+      // Location data
+      ...locationData,
+      
+      // Timestamps
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      
+      // Analytics
+      views: 0,
+      applicationCount: 0
     };
 
-    const job = await Job.create(jobData);
-    
-    // Populate recruiter data for response
-    await job.populate('recruiter', 'name companyName companyLogo');
-    
-    console.log('Job created successfully with location:', job._id);
-
-    return res.status(201).json({
-      success: true,
-      data: job
+    console.log('Final job data prepared for creation:', {
+      title: jobData.title,
+      company: jobData.company,
+      recruiter: jobData.recruiter,
+      hasLocation: !!jobData.latitude,
+      locationSource: jobData.locationSource
     });
+
+    // Create the job
+    console.log('Creating job in database...');
+    const job = await Job.create(jobData);
+    console.log('Job created successfully with ID:', job._id);
+    
+    // Populate recruiter data for response (only if recruiter exists)
+    let populatedJob;
+    try {
+      if (recruiterId) {
+        populatedJob = await job.populate('recruiter', 'name companyName companyLogo email');
+        console.log('Job populated with recruiter data');
+      } else {
+        populatedJob = job;
+        console.log('Job created without recruiter association');
+      }
+    } catch (populateError) {
+      console.warn('Failed to populate recruiter data:', populateError.message);
+      populatedJob = job; // Use unpopulated job if populate fails
+    }
+
+    // Success response
+    const response = {
+      success: true,
+      data: populatedJob,
+      message: 'Job created successfully',
+      locationDetected: !!locationData.latitude
+    };
+
+    console.log('=== JOB CREATION SUCCESS ===');
+    console.log('Response:', {
+      ...response,
+      data: { ...response.data._doc, description: '[TRUNCATED]' }
+    });
+
+    return res.status(201).json(response);
+
   } catch (error) {
-    console.error('Error creating job:', error);
-    res.status(400).json({
+    console.error('=== JOB CREATION ERROR ===');
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+
+    // Handle specific MongoDB errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        details: validationErrors
+      });
+    }
+
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Duplicate entry',
+        details: 'A job with similar details already exists'
+      });
+    }
+
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid ID format',
+        details: error.message
+      });
+    }
+
+    // Generic error response
+    res.status(500).json({
       success: false,
-      error: error.message
+      error: 'Failed to create job',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
 
+// Update job
 exports.updateJob = async (req, res) => {
   try {
     // If location fields are being updated, update the source
     let updateData = { ...req.body, updatedAt: new Date() };
     
     if (req.body.latitude || req.body.longitude) {
-      updateData.locationSource = 'coordinates';
+      updateData.locationSource = 'manual-update';
       updateData.locationDetectedAt = new Date();
     }
 
@@ -326,6 +614,7 @@ exports.updateJob = async (req, res) => {
       data: job
     });
   } catch (error) {
+    console.error('Update job error:', error);
     res.status(400).json({
       success: false,
       error: error.message
@@ -333,6 +622,7 @@ exports.updateJob = async (req, res) => {
   }
 };
 
+// Delete job (soft delete)
 exports.deleteJob = async (req, res) => {
   try {
     const job = await Job.findByIdAndUpdate(
@@ -363,6 +653,7 @@ exports.deleteJob = async (req, res) => {
   }
 };
 
+// Update job status
 exports.updateJobStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -427,42 +718,44 @@ exports.getJobsNearLocation = async (req, res) => {
       {
         $addFields: {
           distance: {
-            $cond: {
-              then: 0, // Remote jobs have 0 distance
-              else: {
-                // Haversine formula for distance calculation
-                $multiply: [
-                  6371,
-                  {
-                    $acos: {
-                      $add: [
+            $multiply: [
+              6371,
+              {
+                $acos: {
+                  $max: [
+                    -1,
+                    {
+                      $min: [
+                        1,
                         {
-                          $multiply: [
-                            { $sin: { $multiply: [{ $divide: [userLat, 180] }, Math.PI] } },
-                            { $sin: { $multiply: [{ $divide: ['$latitude', 180] }, Math.PI] } }
-                          ]
-                        },
-                        {
-                          $multiply: [
-                            { $cos: { $multiply: [{ $divide: [userLat, 180] }, Math.PI] } },
-                            { $cos: { $multiply: [{ $divide: ['$latitude', 180] }, Math.PI] } },
-                            { $cos: { $multiply: [{ $divide: [{ $subtract: ['$longitude', userLng] }, 180] }, Math.PI] } }
+                          $add: [
+                            {
+                              $multiply: [
+                                { $sin: { $multiply: [{ $divide: [userLat, 180] }, Math.PI] } },
+                                { $sin: { $multiply: [{ $divide: ['$latitude', 180] }, Math.PI] } }
+                              ]
+                            },
+                            {
+                              $multiply: [
+                                { $cos: { $multiply: [{ $divide: [userLat, 180] }, Math.PI] } },
+                                { $cos: { $multiply: [{ $divide: ['$latitude', 180] }, Math.PI] } },
+                                { $cos: { $multiply: [{ $divide: [{ $subtract: ['$longitude', userLng] }, 180] }, Math.PI] } }
+                              ]
+                            }
                           ]
                         }
                       ]
                     }
-                  }
-                ]
+                  ]
+                }
               }
-            }
+            ]
           }
         }
       },
       {
         $match: {
-          $or: [
-            { distance: { $lte: radiusKm } }
-          ]
+          distance: { $lte: radiusKm }
         }
       },
       {
@@ -492,6 +785,34 @@ exports.getJobsNearLocation = async (req, res) => {
   }
 };
 
+// Toggle job pin status
+exports.toggleJobPinned = async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id);
+    
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        error: 'Job not found'
+      });
+    }
+
+    job.isPinned = !job.isPinned;
+    job.updatedAt = new Date();
+    await job.save();
+
+    res.status(200).json({
+      success: true,
+      data: job
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
 // Bulk location update for existing jobs
 exports.updateJobLocations = async (req, res) => {
   try {
@@ -511,7 +832,7 @@ exports.updateJobLocations = async (req, res) => {
       try {
         if (job.ipAddress) {
           const locationData = await getLocationFromIP(job.ipAddress);
-          if (locationData) {a
+          if (locationData) {
             await Job.findByIdAndUpdate(job._id, {
               country: locationData.country,
               countryCode: locationData.countryCode,
@@ -550,6 +871,52 @@ exports.updateJobLocations = async (req, res) => {
   }
 };
 
+// Get job statistics
+exports.getJobStats = async (req, res) => {
+  try {
+    const stats = await Job.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalJobs: { $sum: 1 },
+          activeJobs: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ['$isVisible', true] }, { $gte: ['$deadline', new Date()] }] },
+                1,
+                0
+              ]
+            }
+          },
+          expiredJobs: {
+            $sum: {
+              $cond: [{ $lt: ['$deadline', new Date()] }, 1, 0]
+            }
+          },
+          totalApplications: { $sum: '$applicationCount' }
+        }
+      }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: stats[0] || {
+        totalJobs: 0,
+        activeJobs: 0,
+        expiredJobs: 0,
+        remoteJobs: 0,
+        totalApplications: 0
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// Accept job (approve)
 exports.acceptJob = async (req, res) => {
   try {
     const job = await Job.findByIdAndUpdate(
@@ -595,6 +962,7 @@ exports.acceptJob = async (req, res) => {
   }
 };
 
+// Reject job
 exports.rejectJob = async (req, res) => {
   try {
     const job = await Job.findByIdAndUpdate(
@@ -625,6 +993,7 @@ exports.rejectJob = async (req, res) => {
   }
 };
 
+// Fetch job status
 exports.fetchStatus = async (req, res) => {
   try {
     const item = await Job.findById(req.body.id);
@@ -648,6 +1017,7 @@ exports.fetchStatus = async (req, res) => {
   }
 };
 
+// Apply to job with file attachment
 exports.applyJob = async (req, res) => {
   const { userId, jobId, coverLetter } = req.body;
   const fileUrl = req.file?.path;
@@ -661,9 +1031,7 @@ exports.applyJob = async (req, res) => {
 
   try {
     // Fetch job and increment application count
-    const job = await Job.findById(
-      jobId
-    );
+    const job = await Job.findById(jobId);
     
     if (!job) {
       return res.status(404).json({
@@ -762,13 +1130,26 @@ exports.applyJob = async (req, res) => {
       ]
     });
 
+    // Increment job application count
+    await Job.findByIdAndUpdate(jobId, { 
+      $inc: { applicationCount: 1 },
+      updatedAt: new Date()
+    });
+
+    // Clean up temporary file
+    try {
+      tempFile.removeCallback();
+    } catch (cleanupError) {
+      console.warn('Failed to clean up temp file:', cleanupError);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Application submitted successfully.',
       data: {
         jobTitle: job.title,
         company: job.company,
-        applicationCount: job.applicationCount
+        applicationCount: job.applicationCount + 1
       }
     });
 
@@ -782,74 +1163,19 @@ exports.applyJob = async (req, res) => {
   }
 };
 
-exports.toggleJobPinned = async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.id);
-    
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        error: 'Job not found'
-      });
-    }
-
-    job.isPinned = !job.isPinned;
-    job.updatedAt = new Date();
-    await job.save();
-
-    res.status(200).json({
-      success: true,
-      data: job
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
+module.exports = {
+  getAllJobs: exports.getAllJobs,
+  getJob: exports.getJob,
+  createJob: exports.createJob,
+  updateJob: exports.updateJob,
+  deleteJob: exports.deleteJob,
+  updateJobStatus: exports.updateJobStatus,
+  getJobsNearLocation: exports.getJobsNearLocation,
+  toggleJobPinned: exports.toggleJobPinned,
+  updateJobLocations: exports.updateJobLocations,
+  getJobStats: exports.getJobStats,
+  acceptJob: exports.acceptJob,
+  rejectJob: exports.rejectJob,
+  fetchStatus: exports.fetchStatus,
+  applyJob: exports.applyJob
 };
-
-// New endpoint: Get job statistics
-exports.getJobStats = async (req, res) => {
-  try {
-    const stats = await Job.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalJobs: { $sum: 1 },
-          activeJobs: {
-            $sum: {
-              $cond: [
-                { $and: [{ $eq: ['$isVisible', true] }, { $gte: ['$deadline', new Date()] }] },
-                1,
-                0
-              ]
-            }
-          },
-          expiredJobs: {
-            $sum: {
-              $cond: [{ $lt: ['$deadline', new Date()] }, 1, 0]
-            }
-          },
-          totalApplications: { $sum: '$applicationCount' }
-        }
-      }
-    ]);
-
-    res.status(200).json({
-      success: true,
-      data: stats[0] || {
-        totalJobs: 0,
-        activeJobs: 0,
-        expiredJobs: 0,
-        remoteJobs: 0,
-        totalApplications: 0
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error 
-    })
-  }
-}

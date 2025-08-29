@@ -23,7 +23,7 @@ const jobSchema = new mongoose.Schema({
   ipAddress: { type: String }, // Store IP for audit/debugging
   locationSource: { 
     type: String, 
-    enum: ['manual', 'ip-auto', 'coordinates', 'text-parsed'], 
+    enum: ['manual', 'ip-auto', 'coordinates', 'text-parsed' , 'frontend-provided'], 
     default: 'manual' 
   },
   locationDetectedAt: { type: Date },

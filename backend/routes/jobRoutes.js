@@ -1,4 +1,4 @@
-// routes/jobRoutes.js
+// backend/routes/jobRoutes.js
 const express = require('express');
 const router = express.Router();
 const jobController = require('../controllers/jobController');
@@ -28,26 +28,44 @@ const handleAsyncErrors = (fn) => {
   };
 };
 
+// CORS middleware
+const corsMiddleware = (req, res, next) => {
+  res.header(
+    'Access-Control-Allow-Origin',
+    process.env.FRONTEND_URL || 'http://localhost:4000'
+  );
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+    return;
+  }
+  next();
+};
+
 // Apply middleware to all routes
-router.use(ensureJSON);
+router.use(corsMiddleware);
+router.use(ensureJSON); 
 router.use(logRequest);
 
 // Enhanced job routes
-router.get('/jobs', handleAsyncErrors(jobController.getAllJobs));
-router.get('/jobs/stats', handleAsyncErrors(jobController.getJobStats));
-router.get('/jobs/near', handleAsyncErrors(jobController.getJobsNearLocation));
-router.get('/jobs/:id', handleAsyncErrors(jobController.getJob));
-router.post('/jobs', handleAsyncErrors(jobController.createJob));
-router.put('/jobs/:id', handleAsyncErrors(jobController.updateJob));
-router.delete('/jobs', handleAsyncErrors(jobController.deleteJob));
+router.get('/', handleAsyncErrors(jobController.getAllJobs));
+router.get('/stats', handleAsyncErrors(jobController.getJobStats));
+router.get('/near', handleAsyncErrors(jobController.getJobsNearLocation));
+router.get('/:id', handleAsyncErrors(jobController.getJob));
+router.post('/', handleAsyncErrors(jobController.createJob));
+router.put('/:id', handleAsyncErrors(jobController.updateJob));
+router.delete('/', handleAsyncErrors(jobController.deleteJob));
 
 // Location-specific routes
-router.post('/jobs/update-locations', handleAsyncErrors(jobController.updateJobLocations));
-router.post('/jobs/accept', handleAsyncErrors(jobController.acceptJob));
-router.post('/jobs/reject', handleAsyncErrors(jobController.rejectJob));
-router.post('/jobs/apply', handleAsyncErrors(jobController.applyJob));
-router.post('/jobs/fetch-status', handleAsyncErrors(jobController.fetchStatus));
-router.patch('/jobs/:id/toggle-pin', handleAsyncErrors(jobController.toggleJobPinned));
+router.post('/update-locations', handleAsyncErrors(jobController.updateJobLocations));
+router.post('/accept', handleAsyncErrors(jobController.acceptJob));
+router.post('/reject', handleAsyncErrors(jobController.rejectJob));
+router.post('/apply', handleAsyncErrors(jobController.applyJob));
+router.post('/fetch-status', handleAsyncErrors(jobController.fetchStatus));
+router.patch('/:id/toggle-pin', handleAsyncErrors(jobController.toggleJobPinned));
 
 // Global error handler
 router.use((error, req, res, next) => {
@@ -55,9 +73,9 @@ router.use((error, req, res, next) => {
   
   // Ensure we always send JSON
   if (!res.headersSent) {
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
-      error: 'Internal server error',
+      error: error.message || 'Internal server error',
       message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
       timestamp: new Date().toISOString()
     });
