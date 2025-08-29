@@ -22,7 +22,7 @@ export default function RegisterPage() {
     // If already authenticated, redirect to dashboard
     if (isAuthenticated) {
       console.log("isAuthenticated", isAuthenticated);
-      router.push('/dashboard');
+      router.push('/admin/dashboard');
     }
   }, [isAuthenticated, router]);
 
@@ -40,7 +40,7 @@ export default function RegisterPage() {
 
     try {
       await register(formData);
-      router.push('/dashboard');
+      router.push('/admin/dashboard');
     } catch (error) {
       setError('An error occurred during registration');
     } finally {
@@ -143,7 +143,7 @@ export default function RegisterPage() {
 
         <div className="text-center mt-4">
           <Link
-            href="/login"
+            href="/admin/login"
             className="text-sm text-blue-600 hover:text-blue-800"
           >
             Already have an account? Login
