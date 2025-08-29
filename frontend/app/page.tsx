@@ -19,9 +19,6 @@ const ChatGPTCard = dynamic(() => import("@/components/custom/chatgpt-card"), { 
 const Header = dynamic(() => import("@/components/layout/header"), { ssr: false });
 const Footer = dynamic(() => import("@/components/layout/footer"), { ssr: false });
 const CodeDialog = dynamic(() => import("@/components/dialog/code-dialog"), { ssr: false });
-const FeedbackDialog = dynamic(() => import("@/components/dialog/feedback-dialog"), { ssr: false });
-const JobPostingDialog = dynamic(() => import("@/components/dialog/jobposting-dialog"), { ssr: false });
-const ApplyJobDialog = dynamic(() => import("@/components/dialog/applyjob-dialog").then(mod => ({ default: mod.ApplyJobDialog })), { ssr: false });
 const Sidebar = dynamic(() => import("@/components/layout/sidebar"), { ssr: false });
 const Recruiters = dynamic(() => import("@/components/sections/recruiters"), { ssr: false });
 const Contributors = dynamic(() => import("@/components/sections/contributors"), { ssr: false });
@@ -339,16 +336,6 @@ export default function Home() {
         }
         copyCode={handleCopyCode}
       />
-
-      <FeedbackDialog
-        type={feedbackType}
-        programId={selectedProgram._id}
-        open={showFeedback}
-        onOpenChange={setShowFeedback}
-        selectedProgram={selectedProgram}
-      />
-      <JobPostingDialog open={showJobPosting} onOpenChange={setShowJobPosting} />
-      <ApplyJobDialog open={showApplyJob} onOpenChange={setShowApplyJob} />
     </div>
   );
 }
