@@ -59,13 +59,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('userData');
-    localStorage.removeItem('token');
-    setIsAuthenticated(false);
-    router.push('/admin/login');
-  };
+ const logout = () => {
+  console.log("AuthContext logout called - routing to /admin/login");
+  setUser(null);
+  localStorage.removeItem('userData');
+  localStorage.removeItem('token');
+  setIsAuthenticated(false);
+  router.push('/admin/login');
+};
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading, isAuthenticated, register }}>

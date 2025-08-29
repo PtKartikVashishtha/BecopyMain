@@ -44,8 +44,9 @@ export const authService = {
   },
 
   logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userData');
-    window.location.href = '/admin/login';
-  }
+  console.log("authService logout called - routing to /admin/login");
+  localStorage.removeItem('token');
+  localStorage.removeItem('userData');
+  window.location.href = '/admin/login';
+}
 }; 

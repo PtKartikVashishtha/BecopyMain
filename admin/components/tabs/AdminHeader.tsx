@@ -12,19 +12,24 @@ import { useTheme } from 'next-themes';
 import { NotificationBell } from '../custom/notification-bell';
 import { useAuth } from '@/context/AuthContext';
 import { log } from 'console';
+import {useRouter} from 'next/navigation';
+import { use } from 'react';
+
 interface AdminHeaderProps {
   changeTab: (lang: string) => void;
   openSetting: () => void;
 }
-
 export function AdminHeader({ changeTab, openSetting }: AdminHeaderProps) {
-  const { setTheme } = useTheme();
+const router = useRouter();
+const { setTheme } = useTheme();
   const handleClick = () => {
     openSetting();
   }
   const { logout } = useAuth();
   const handleLogout = () => {
+    
     logout();
+     
     setTheme("system");
   }
   return (

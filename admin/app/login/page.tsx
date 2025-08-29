@@ -14,7 +14,7 @@ export default function LoginPage() {
   useEffect(() => {
     // If already authenticated, redirect to dashboard
     if (isAuthenticated) {
-      router.push('/admin/dashboard');
+      router.push('/dashboard');
     }
   }, [isAuthenticated, router]);
 
@@ -34,7 +34,7 @@ export default function LoginPage() {
       // router.push('/admin/dashboard');
       let loginData = await authService.login(credentials);
       if (loginData.success) {
-        return router.push('/admin/dashboard');
+        return router.push('/dashboard');
       }
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -84,7 +84,7 @@ export default function LoginPage() {
 
         <div className="text-center mt-4">
           <Link
-            href="/admin/register"
+            href="/register"
             className="text-sm text-blue-600 hover:text-blue-800"
           >
             Need an admin account? Register
