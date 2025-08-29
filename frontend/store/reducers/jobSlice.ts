@@ -8,7 +8,7 @@ export interface Job {
   company: string;
   location: string;
   salary?: string;
-  [key: string]: any; // fallback for extra fields
+  [key: string]: any;
 }
 
 interface Filters {
@@ -53,15 +53,68 @@ const initialState: JobState = {
   },
 };
 
-// Async Thunks
-export const fetchJobs = createAsyncThunk<Job[], void, { rejectValue: string }>(
+// ✅ Unified fetchJobs with optional geo params
+export const fetchJobs = createAsyncThunk<
+  Job[],
+  {
+    lat?: number;
+    lng?: number;
+    radius?: number;
+    userCountry?: string;
+    userCity?: string;
+    geoMode?: boolean;
+  } | void,
+  { rejectValue: string }
+>(
   'jobs/fetchJobs',
-  async (_, { rejectWithValue }) => {
+  async (geoParams, { rejectWithValue }) => {
     try {
-      const response = await jobAPI.getAll();
-      return response.data as Job[];
+      let url = '/api/jobs';
+
+      if (geoParams && geoParams.geoMode) {
+        const params = new URLSearchParams({
+          lat: geoParams.lat?.toString() || '0',
+          lng: geoParams.lng?.toString() || '0',
+          radius: geoParams.radius?.toString() || '250',
+          geoMode: 'true',
+          userCountry: geoParams.userCountry || '',
+          userCity: geoParams.userCity || '',
+        });
+        url += `?${params}`;
+      }
+
+      const response = await fetch(url);
+      const data = await response.json();
+      return data.data as Job[];
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to fetch jobs');
+    }
+  }
+);
+
+// Optional dedicated geo fetch (kept separate if you want)
+export const fetchGeoJobs = createAsyncThunk<
+  Job[],
+  { lat: number; lng: number; radius?: number; userCountry?: string; userCity?: string },
+  { rejectValue: string }
+>(
+  'jobs/fetchGeoJobs',
+  async ({ lat, lng, radius = 250, userCountry = '', userCity = '' }, { rejectWithValue }) => {
+    try {
+      const params = new URLSearchParams({
+        lat: lat.toString(),
+        lng: lng.toString(),
+        radius: radius.toString(),
+        geoMode: 'true',
+        userCountry,
+        userCity,
+      });
+
+      const response = await fetch(`/api/jobs/near?${params}`);
+      const data = await response.json();
+      return data.data as Job[];
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch geo jobs');
     }
   }
 );
@@ -107,7 +160,7 @@ export const applyToJob = createAsyncThunk<any, FormData, { rejectValue: string 
   async (formData, { rejectWithValue }) => {
     try {
       const response = await jobAPI.apply(formData);
-      return response; // not typed specifically since it can vary
+      return response;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Failed to apply to job');
     }
@@ -132,7 +185,6 @@ export const newjob = createAsyncThunk("jobs/newjob", async (job: any) => {
 });
 
 // Slice
-
 const jobSlice = createSlice({
   name: 'jobs',
   initialState,
@@ -160,7 +212,6 @@ const jobSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // Fetch Jobs
       .addCase(fetchJobs.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -174,65 +225,29 @@ const jobSlice = createSlice({
       .addCase(fetchJobs.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || 'Failed to fetch jobs';
-        console.error('Failed to fetch jobs:', action.payload);
-      })
-      // Fetch Single Job
-      .addCase(fetchJob.pending, (state) => {
-        state.loading = true;
-        state.error = null;
       })
       .addCase(fetchJob.fulfilled, (state, action) => {
-        state.loading = false;
         state.currentJob = action.payload;
-        state.error = null;
-      })
-      .addCase(fetchJob.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload || 'Failed to fetch job';
-      })
-      // Create Job
-      .addCase(createJob.pending, (state) => {
-        state.loading = true;
-        state.error = null;
       })
       .addCase(createJob.fulfilled, (state, action) => {
-        state.loading = false;
         state.items.unshift(action.payload);
-        state.error = null;
       })
-      .addCase(createJob.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload || 'Failed to create job';
-      })
-      // Update Job
       .addCase(updateJob.fulfilled, (state, action) => {
         const index = state.items.findIndex((job) => job._id === action.payload._id);
-        if (index !== -1) {
-          state.items[index] = action.payload;
-        }
+        if (index !== -1) state.items[index] = action.payload;
         if (state.currentJob && state.currentJob._id === action.payload._id) {
           state.currentJob = action.payload;
         }
       })
-      // Apply to Job
-      .addCase(applyToJob.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
       .addCase(applyToJob.fulfilled, (state) => {
         state.loading = false;
-        state.error = null;
       })
-      .addCase(applyToJob.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload || 'Failed to apply to job';
-      })
-      // Toggle Job Pin
       .addCase(toggleJobPin.fulfilled, (state, action) => {
         const index = state.items.findIndex((job) => job._id === action.payload._id);
-        if (index !== -1) {
-          state.items[index] = action.payload;
-        }
+        if (index !== -1) state.items[index] = action.payload;
+      })
+      .addCase(fetchGeoJobs.fulfilled, (state, action) => {
+        state.items = action.payload || [];
       });
   },
 });
@@ -241,4 +256,3 @@ export const { clearJobError, setJobFilters, clearJobFilters, setPagination, cle
   jobSlice.actions;
 
 export default jobSlice.reducer;
-
