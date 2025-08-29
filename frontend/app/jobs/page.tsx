@@ -134,7 +134,7 @@ export default function Jobs() {
     setPage(1);
   };
 
-  const handleApplyJob = (job) => {
+  const handleApplyJob = (job : any) => {
     // Navigate to apply-job page with job title and ID as query params
     const jobTitle = encodeURIComponent(job?.title || '');
     const jobId = job?._id || '';
@@ -150,7 +150,7 @@ export default function Jobs() {
     window.location.assign(`/?programId=${program._id}`);
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString : any) => {
     if (!dateString) return "No deadline";
     try {
       return format(new Date(dateString), "MMM dd, yyyy");
@@ -160,7 +160,7 @@ export default function Jobs() {
     }
   };
 
-  const isExpired = (dateString) => {
+  const isExpired = (dateString : any) => {
     if (!dateString) return false;
     try {
       return new Date(dateString) < new Date();
