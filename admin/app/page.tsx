@@ -20,7 +20,7 @@ export default function Home() {
                 Manage content, approve submissions, and monitor activity
               </p>
               <div className="w-full space-y-4">
-                <Link href="/login" className="w-full">
+                <Link href="/admin/login" className="w-full">
                   <Button className="w-full" size="lg">
                     Login to Dashboard
                   </Button>
