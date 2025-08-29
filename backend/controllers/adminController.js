@@ -29,11 +29,12 @@ exports.register = async (req, res) => {
     
     if (existingAdmin) {
       console.log('User already exists');
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         error: 'Email already registered'
       });
     }
+   
 
     console.log('Starting password hashing in controller');
     // Hash password in controller
