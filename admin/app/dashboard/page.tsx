@@ -25,7 +25,7 @@ export default function Dashboard() {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [language, setLanguage] = useState('');
-
+  
   const { isAuthenticated } = useAuth();
   useEffect(() => {
     // If already authenticated, redirect to dashboard
