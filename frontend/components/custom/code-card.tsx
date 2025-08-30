@@ -416,11 +416,15 @@ const CodeCard = ({
     setMouseDownPosition({ x: e.clientX, y: e.clientY });
   };
 
-  const onShowCode = () => {
+  const onShowCode = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     // Check if mobile
     if (window.innerWidth < 640) {
       setShowMobileViewer(true);
     } else {
+      // For desktop, set language and show dialog without navigation
       clickFunc(language);
       showDialog(true);
     }
@@ -431,7 +435,12 @@ const CodeCard = ({
     return code.replaceAll("    ", "  ");
   };
   
-  const handleCopyCode = async () => {
+  const handleCopyCode = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
@@ -452,7 +461,7 @@ const CodeCard = ({
         if (deltaX < 1 && deltaY < 1) {
           const selection = window.getSelection();
           if (!selection || selection.toString().length === 0) {
-            onShowCode();
+            onShowCode(e);
           }
         }
 
@@ -461,33 +470,45 @@ const CodeCard = ({
     }
   };
 
-  const handleFeedbackClick = (type: "bug" | "suggestion") => {
+  const handleFeedbackClick = (e: React.MouseEvent, type: "bug" | "suggestion") => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (window.innerWidth < 640) {
       setFeedbackType(type);
       setShowMobileFeedback(true);
     } else {
+      // For desktop feedback, call the function directly
       onShowFeedback(type);
     }
   };
 
-  const handleShareClick = useCallback(async (e: any) => {
+  const handleShareClick = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (window.innerWidth < 640) {
       setShowMobileShare(true);
     } else {
       // Desktop sharing logic
-      if (!language && navigator.share === undefined) return;
       try {
-        await navigator.share({
-          title: "Check out this code",
-          text: `${code}`,
-          url: window.location.href,
-        });
-        console.log("code shared successfully");
+        if (navigator.share) {
+          await navigator.share({
+            title: "Check out this code",
+            text: `${code}`,
+            url: window.location.href,
+          });
+          console.log("code shared successfully");
+        } else {
+          // Fallback for desktop browsers without native share
+          await navigator.clipboard.writeText(window.location.href);
+          alert("Link copied to clipboard!");
+        }
       } catch (error) {
         console.log("error", error);
       }
     }
-  }, [language, code]);
+  }, [code]);
 
   const handleFeedbackSubmit = async (feedback: string) => {
     // Here you would typically send the feedback to your API
@@ -509,9 +530,7 @@ const CodeCard = ({
       });
       setHighlightedCode(highlighted);
 
-      // Highlight all languages for feedback modal (assuming you have access to all code)
-      // You'll need to pass the full program object with all language codes
-      // For now, using the current code for all languages as placeholder
+      // Highlight all languages for feedback modal
       const allHighlighted = {
         java: highlighter.codeToHtml(formatCode(code), {
           lang: "java",
@@ -543,13 +562,13 @@ const CodeCard = ({
   return (
     <>
       <Card className="w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg bg-white">
-        {/* Mobile-optimized header */}
-        <CardHeader className="px-2 sm:px-4 py-2 border-b border-[#c8c8c8] bg-white">
-          <div className="flex flex-col sm:grid sm:grid-cols-12 w-full gap-2 sm:gap-0">
+        {/* Fixed header with better spacing and margins */}
+        <CardHeader className="px-4 sm:px-6 py-2 border-b border-[#c8c8c8] bg-white">
+          <div className="flex flex-col sm:grid sm:grid-cols-12 w-full gap-4 sm:gap-6">
             {/* Mobile: Language and Stats Row */}
             <div className="flex justify-between items-center sm:contents">
-              {/* Language */}
-              <div className="sm:col-span-3 flex items-center">
+              {/* Language with proper margin */}
+              <div className="sm:col-span-3 flex items-center mr-4">
                 <span className="text-xs sm:text-sm font-medium text-gray-900">
                   {language.toString().slice(0, 1).toUpperCase() +
                     language.toString().slice(1)}
@@ -557,7 +576,7 @@ const CodeCard = ({
               </div>
 
               {/* Stats - Mobile only */}
-              <div className="flex sm:hidden space-x-3">
+              <div className="flex sm:hidden space-x-4">
                 {!isDashboard && (
                   <>
                     <div className="flex items-center space-x-1 text-gray-600">
@@ -577,15 +596,15 @@ const CodeCard = ({
               </div>
             </div>
 
-            {/* Title Row */}
-            <div className="sm:col-span-6 flex justify-center sm:justify-center">
-              <CardTitle className="text-gray-900 text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full">
+            {/* Title Row with better spacing and margin from buttons */}
+            <div className="sm:col-span-6 flex justify-center sm:justify-center px-4 sm:pr-10 sm:pl-6">
+              <CardTitle className="text-gray-900 text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full mr-3">
                 {title}
               </CardTitle>
             </div>
 
-            {/* Dashboard buttons or Desktop stats */}
-            <div className="hidden sm:flex sm:col-span-3 justify-end items-center">
+            {/* Dashboard buttons or Desktop stats with improved spacing and margin */}
+            <div className="hidden sm:flex sm:col-span-3 justify-end items-center ml-6">
               {isDashboard ? (
                 <div className="flex space-x-2">
                   <button className="w-3 h-3 rounded-full bg-[#ff5f56]" />
@@ -593,7 +612,7 @@ const CodeCard = ({
                   <button className="w-3 h-3 rounded-full bg-[#27c93f]" />
                 </div>
               ) : (
-                <div className="flex space-x-3 text-gray-600 text-sm">
+                <div className="flex space-x-4 text-gray-600 text-sm">
                   <div className="flex items-center space-x-1">
                     <Eye className="w-4 h-4" />
                     <span>{viewedNumber}</span>
@@ -639,15 +658,15 @@ const CodeCard = ({
           </ScrollArea>
         </CardContent>
 
-        {/* Mobile-optimized footer */}
-        <CardFooter className="bg-white min-h-[40px] sm:min-h-[35px] px-2 sm:px-4 py-2 sm:py-4 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg">
+        {/* Fixed footer with better button spacing and corrected tooltip background */}
+        <CardFooter className="bg-white max-h-[40px] px-3 sm:px-4 py-3 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg">
           {hasButtons && (
-            <div className="flex space-x-3 sm:space-x-4">
+            <div className="flex space-x-6">
               <RadixTooltip.Provider>
                 <RadixTooltip.Root open={copied}>
                   <RadixTooltip.Trigger asChild>
                     <button
-                      className={`hover:text-gray-600 transition-colors p-1 sm:p-0 ${
+                      className={`hover:text-gray-600 transition-colors p-2 ${
                         copied ? "text-gray-600" : "text-gray-400"
                       }`}
                       onClick={handleCopyCode}
@@ -658,10 +677,10 @@ const CodeCard = ({
                   <RadixTooltip.Content
                     side="top"
                     sideOffset={5}
-                    className="bg-black text-white px-2 py-1 rounded text-xs shadow-md animate-fadeIn"
+                    className="bg-white  px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50"
                   >
                     Code copied
-                    <RadixTooltip.Arrow className="fill-black" />
+                    <RadixTooltip.Arrow className="fill-gray-800" />
                   </RadixTooltip.Content>
                 </RadixTooltip.Root>
               </RadixTooltip.Provider>
@@ -670,8 +689,8 @@ const CodeCard = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="text-gray-400 hover:text-gray-600 transition-colors p-1 sm:p-0"
-                      onClick={() => (isDashboard ? null : onShowCode())}
+                      className="text-gray-400 hover:text-gray-600 transition-colors p-2"
+                      onClick={onShowCode}
                     >
                       <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
@@ -686,10 +705,8 @@ const CodeCard = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="text-gray-400 hover:text-gray-600 transition-colors p-1 sm:p-0"
-                      onClick={() =>
-                        isDashboard ? null : handleFeedbackClick("bug")
-                      }
+                      className="text-gray-400 hover:text-gray-600 transition-colors p-2"
+                      onClick={(e) => handleFeedbackClick(e, "bug")}
                     >
                       <Flag className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
@@ -704,10 +721,8 @@ const CodeCard = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="text-gray-400 hover:text-gray-600 transition-colors p-1 sm:p-0"
-                      onClick={() =>
-                        isDashboard ? null : handleFeedbackClick("suggestion")
-                      }
+                      className="text-gray-400 hover:text-gray-600 transition-colors p-2"
+                      onClick={(e) => handleFeedbackClick(e, "suggestion")}
                     >
                       <Lightbulb className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
@@ -722,7 +737,7 @@ const CodeCard = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="text-gray-400 hover:text-gray-600 transition-colors p-1 sm:p-0"
+                      className="text-gray-400 hover:text-gray-600 transition-colors p-2"
                       onClick={handleShareClick}
                     >
                       <ExternalLink className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -756,9 +771,9 @@ const CodeCard = ({
         title={title}
         onSubmit={handleFeedbackSubmit}
         codeData={{
-          java: code, // You should pass actual java code here
-          python: code, // You should pass actual python code here  
-          html: code, // You should pass actual html code here
+          java: code,
+          python: code,
+          html: code,
           javaHighlighted: allHighlightedCode.java,
           pythonHighlighted: allHighlightedCode.python,
           htmlHighlighted: allHighlightedCode.html

@@ -77,7 +77,7 @@ const ChatGPTCard = ({ language, clickFunc, showDialog }: ChatGPTCardProps) => {
         </div>
         <CardContent className="p-0 ">
           <textarea
-            className="w-full h-28 sm:h-32 bg-white p-2 text-sm font-mono outline-none overflow-auto size-fixed min-h-[125px] sm:min-h-[185px]"
+            className="w-full h-28 sm:h-20 bg-white p-2 text-sm font-mono outline-none overflow-auto size-fixed min-h-[125px] sm:min-h-[178px]"
             placeholder="// Write your code here to convert..."
             value={code}
             onChange={(e) => setCode(e.target.value)}

@@ -167,13 +167,6 @@ const Header = ({ isSidebarOpen, toggleSidebar, setSelectedProgram }: HeaderProp
           </button>
         )}
 
-        {settings?.isApplyJob && (
-          <button onClick={() => router.push("/apply-job")}
-                  className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer">
-            Apply Job
-          </button>
-        )}
-
         <p onClick={() => router.push("/quiz")}
            className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer">
           Quiz

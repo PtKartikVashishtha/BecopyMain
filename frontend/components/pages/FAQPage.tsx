@@ -1,11 +1,22 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import dynamic from "next/dynamic";
 import { ChevronDown, ChevronUp, Search, MessageCircle, Code, Users, Briefcase, Award } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useMediaQuery } from "react-responsive";
+import { useAppSelector, useAppDispatch } from "@/store/hooks";
+import { fetchCategories } from "@/store/reducers/categorySlice";
+import { fetchSettings } from "@/store/reducers/settingSlice";
+import { Program } from "@/types";
+
+// Dynamic imports with SSR disabled
+const Header = dynamic(() => import("@/components/layout/header"), { ssr: false });
+const Footer = dynamic(() => import("@/components/layout/footer"), { ssr: false });
+const Sidebar = dynamic(() => import("@/components/layout/sidebar"), { ssr: false });
 
 interface FAQItem {
   id: number;
@@ -119,9 +130,51 @@ const categoryColors = {
 };
 
 const FAQPage = () => {
+  const [isClient, setIsClient] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [showJobPosting, setShowJobPosting] = useState(false);
+  const [showApplyJob, setShowApplyJob] = useState(false);
+  
+  const dispatch = useAppDispatch();
+  const isMobile = useMediaQuery({ maxWidth: 639 });
+  
+  const categoriesState = useAppSelector((state) => state.categories);
+  const categories = categoriesState.items;
+
+  // Initialize client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Fetch data
+  useEffect(() => {
+    if (!isClient) return;
+    dispatch(fetchCategories());
+    dispatch(fetchSettings());
+  }, [dispatch, isClient]);
+
+  // Initialize expanded categories
+  const selectedProgramInit: Program = {
+    _id: "",
+    name: "",
+    code: { java: "", python: "", html: "" },
+    views: 0,
+    copies: 0,
+    shares: 0,
+  };
+
+  const [selectedProgram, setSelectedProgram] = useState<Program>(selectedProgramInit);
+
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  const handleProgramSelect = (program: Program) => {
+    setSelectedProgram(program);
+    setIsSidebarOpen(false);
+  };
 
   const toggleExpanded = (id: number) => {
     const newExpanded = new Set(expandedItems);
@@ -141,7 +194,7 @@ const FAQPage = () => {
     return matchesSearch && matchesCategory;
   });
 
-  const categories = [
+  const faqCategories = [
     { id: "all", name: "All Questions", count: faqData.length },
     { id: "general", name: "General", count: faqData.filter(f => f.category === "general").length },
     { id: "coding", name: "Coding", count: faqData.filter(f => f.category === "coding").length },
@@ -150,166 +203,209 @@ const FAQPage = () => {
     { id: "account", name: "Account", count: faqData.filter(f => f.category === "account").length }
   ];
 
+  if (!isClient) {
+    return (
+      <div className="min-h-[80vh] bg-[#f5f5f5] flex items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 pt-16">
-      {/* Header Section */}
-      <div className="bg-gradient-to-r from-[#0284DA] to-[#0ea5e9] text-white py-16">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            Frequently Asked Questions
-          </h1>
-          <p className="text-xl text-blue-100 mb-8">
-            Find answers to common questions about BeCopy
-          </p>
-          
-          {/* Search Bar */}
-          <div className="relative max-w-md mx-auto">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-            <Input
-              type="text"
-              placeholder="Search FAQs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-3 w-full bg-white/10 backdrop-blur-sm border-white/20 text-white placeholder-blue-200 focus:bg-white/20"
+    <div className="min-h-screen bg-[#f5f5f5]">
+      <Header
+        isSidebarOpen={isSidebarOpen}
+        toggleSidebar={toggleSidebar}
+        setSelectedProgram={setSelectedProgram}
+      />
+
+      {isSidebarOpen && isMobile && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-30"
+          onClick={toggleSidebar}
+        />
+      )}
+
+      <div className="pt-12">
+        <div className="flex flex-col w-full relative min-h-[calc(100vh-5rem)]">
+          {isMobile && (
+            <Sidebar
+              isSidebarOpen={isSidebarOpen}
+              expandedCategories={expandedCategories}
+              onSelectProgram={handleProgramSelect}
+              onShowJobPosting={() => setShowJobPosting(true)}
+              onShowApplyJob={() => setShowApplyJob(true)}
+              onCloseSidebar={() => setIsSidebarOpen(false)}
+              toggleCategory={() => {}}
             />
+          )}
+
+          <div className="flex-1">{/* Remove xl:ml-64 since no desktop sidebar */}
+            {/* Header Section */}
+            <div className="bg-gradient-to-r from-[#0284DA] to-[#0ea5e9] text-white py-16">
+              <div className="max-w-4xl mx-auto px-6 text-center">
+                <h1 className="text-4xl md:text-5xl font-bold mb-4">
+                  Frequently Asked Questions
+                </h1>
+                <p className="text-xl text-blue-100 mb-8">
+                  Find answers to common questions about BeCopy
+                </p>
+                
+                {/* Search Bar */}
+                <div className="relative max-w-md mx-auto">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <Input
+                    type="text"
+                    placeholder="Search FAQs..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-3 w-full bg-white/10 backdrop-blur-sm border-white/20 text-white placeholder-blue-200 focus:bg-white/20"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="max-w-6xl mx-auto px-6 py-12">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                {/* Category Filter Sidebar */}
+                <div className="lg:col-span-1">
+                  <Card className="sticky top-24 shadow-lg border-0 bg-white/70 backdrop-blur-sm">
+                    <CardHeader>
+                      <CardTitle className="text-lg text-[#0284DA]">Categories</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {faqCategories.map((category) => {
+                        const IconComponent = category.id === "all" ? MessageCircle : categoryIcons[category.id as keyof typeof categoryIcons];
+                        return (
+                          <Button
+                            key={category.id}
+                            variant={selectedCategory === category.id ? "default" : "ghost"}
+                            className={`w-full justify-between ${
+                              selectedCategory === category.id 
+                                ? "bg-[#0284DA] text-white" 
+                                : "text-gray-700 hover:bg-blue-50"
+                            }`}
+                            onClick={() => setSelectedCategory(category.id)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <IconComponent className="h-4 w-4" />
+                              <span>{category.name}</span>
+                            </div>
+                            <Badge variant="secondary" className="ml-2">
+                              {category.count}
+                            </Badge>
+                          </Button>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* FAQ Items */}
+                <div className="lg:col-span-3 space-y-4">
+                  {filteredFAQs.length === 0 ? (
+                    <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm">
+                      <CardContent className="p-12 text-center">
+                        <MessageCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-gray-600 mb-2">
+                          No FAQs found
+                        </h3>
+                        <p className="text-gray-500">
+                          Try adjusting your search terms or category filter.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    filteredFAQs.map((faq) => {
+                      const isExpanded = expandedItems.has(faq.id);
+                      const IconComponent = categoryIcons[faq.category];
+                      
+                      return (
+                        <Card 
+                          key={faq.id} 
+                          className="shadow-lg border-0 bg-white/70 backdrop-blur-sm hover:shadow-xl transition-all duration-300 overflow-hidden"
+                        >
+                          <CardHeader
+                            className="cursor-pointer hover:bg-blue-50/50 transition-colors duration-200"
+                            onClick={() => toggleExpanded(faq.id)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <IconComponent className="h-5 w-5 text-[#0284DA]" />
+                                  <Badge className={categoryColors[faq.category]}>
+                                    {faq.category.charAt(0).toUpperCase() + faq.category.slice(1)}
+                                  </Badge>
+                                </div>
+                                <CardTitle className="text-lg text-gray-800 leading-relaxed">
+                                  {faq.question}
+                                </CardTitle>
+                              </div>
+                              <div className="ml-4 flex-shrink-0">
+                                {isExpanded ? (
+                                  <ChevronUp className="h-6 w-6 text-[#0284DA]" />
+                                ) : (
+                                  <ChevronDown className="h-6 w-6 text-[#0284DA]" />
+                                )}
+                              </div>
+                            </div>
+                          </CardHeader>
+                          
+                          {isExpanded && (
+                            <CardContent className="pt-0 animate-in slide-in-from-top-2 duration-200">
+                              <div className="pl-8 border-l-4 border-blue-200">
+                                <p className="text-gray-700 leading-relaxed mb-4">
+                                  {faq.answer}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {faq.tags.map((tag) => (
+                                    <Badge 
+                                      key={tag} 
+                                      variant="outline" 
+                                      className="text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
+                                    >
+                                      #{tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            </CardContent>
+                          )}
+                        </Card>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Contact Section */}
+              <Card className="mt-12 shadow-lg border-0 bg-gradient-to-r from-[#0284DA] to-[#0ea5e9] text-white overflow-hidden">
+                <CardContent className="p-8 text-center relative">
+                  <div className="absolute inset-0 bg-white/5 backdrop-blur-sm"></div>
+                  <div className="relative z-10">
+                    <MessageCircle className="h-12 w-12 mx-auto mb-4 text-blue-100" />
+                    <h3 className="text-2xl font-bold mb-4">Still have questions?</h3>
+                    <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
+                      Can't find what you're looking for? Our support team is here to help you get the most out of BeCopy.
+                    </p>
+                    <Button 
+                      variant="secondary" 
+                      size="lg"
+                      className="bg-white text-[#0284DA] hover:bg-blue-50 font-semibold"
+                      onClick={() => window.location.href = '/contact'}
+                    >
+                      Contact Support
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Category Filter Sidebar */}
-          <div className="lg:col-span-1">
-            <Card className="sticky top-24 shadow-lg border-0 bg-white/70 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-lg text-[#0284DA]">Categories</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {categories.map((category) => {
-                  const IconComponent = category.id === "all" ? MessageCircle : categoryIcons[category.id as keyof typeof categoryIcons];
-                  return (
-                    <Button
-                      key={category.id}
-                      variant={selectedCategory === category.id ? "default" : "ghost"}
-                      className={`w-full justify-between ${
-                        selectedCategory === category.id 
-                          ? "bg-[#0284DA] text-white" 
-                          : "text-gray-700 hover:bg-blue-50"
-                      }`}
-                      onClick={() => setSelectedCategory(category.id)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <IconComponent className="h-4 w-4" />
-                        <span>{category.name}</span>
-                      </div>
-                      <Badge variant="secondary" className="ml-2">
-                        {category.count}
-                      </Badge>
-                    </Button>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* FAQ Items */}
-          <div className="lg:col-span-3 space-y-4">
-            {filteredFAQs.length === 0 ? (
-              <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm">
-                <CardContent className="p-12 text-center">
-                  <MessageCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-600 mb-2">
-                    No FAQs found
-                  </h3>
-                  <p className="text-gray-500">
-                    Try adjusting your search terms or category filter.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              filteredFAQs.map((faq) => {
-                const isExpanded = expandedItems.has(faq.id);
-                const IconComponent = categoryIcons[faq.category];
-                
-                return (
-                  <Card 
-                    key={faq.id} 
-                    className="shadow-lg border-0 bg-white/70 backdrop-blur-sm hover:shadow-xl transition-all duration-300 overflow-hidden"
-                  >
-                    <CardHeader
-                      className="cursor-pointer hover:bg-blue-50/50 transition-colors duration-200"
-                      onClick={() => toggleExpanded(faq.id)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <IconComponent className="h-5 w-5 text-[#0284DA]" />
-                            <Badge className={categoryColors[faq.category]}>
-                              {faq.category.charAt(0).toUpperCase() + faq.category.slice(1)}
-                            </Badge>
-                          </div>
-                          <CardTitle className="text-lg text-gray-800 leading-relaxed">
-                            {faq.question}
-                          </CardTitle>
-                        </div>
-                        <div className="ml-4 flex-shrink-0">
-                          {isExpanded ? (
-                            <ChevronUp className="h-6 w-6 text-[#0284DA]" />
-                          ) : (
-                            <ChevronDown className="h-6 w-6 text-[#0284DA]" />
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    
-                    {isExpanded && (
-                      <CardContent className="pt-0 animate-in slide-in-from-top-2 duration-200">
-                        <div className="pl-8 border-l-4 border-blue-200">
-                          <p className="text-gray-700 leading-relaxed mb-4">
-                            {faq.answer}
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {faq.tags.map((tag) => (
-                              <Badge 
-                                key={tag} 
-                                variant="outline" 
-                                className="text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
-                              >
-                                #{tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </CardContent>
-                    )}
-                  </Card>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Contact Section */}
-        <Card className="mt-12 shadow-lg border-0 bg-gradient-to-r from-[#0284DA] to-[#0ea5e9] text-white overflow-hidden">
-          <CardContent className="p-8 text-center relative">
-            <div className="absolute inset-0 bg-white/5 backdrop-blur-sm"></div>
-            <div className="relative z-10">
-              <MessageCircle className="h-12 w-12 mx-auto mb-4 text-blue-100" />
-              <h3 className="text-2xl font-bold mb-4">Still have questions?</h3>
-              <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
-                Can't find what you're looking for? Our support team is here to help you get the most out of BeCopy.
-              </p>
-              <Button 
-                variant="secondary" 
-                size="lg"
-                className="bg-white text-[#0284DA] hover:bg-blue-50 font-semibold"
-                onClick={() => window.location.href = '/contact'}
-              >
-                Contact Support
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="pb-1">
+        <Footer />
       </div>
     </div>
   );

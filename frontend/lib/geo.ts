@@ -1,4 +1,5 @@
 export interface UserLocation {
+  lastFetch: any;
   country: string;
   countryCode: string;
   region: string;

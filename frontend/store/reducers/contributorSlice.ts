@@ -3,6 +3,7 @@ import api from "@/lib/api";
 
 // Define your data types
 interface ContributorState {
+  savedContributions: never[];
   items: any[];
   loading: boolean;
   error: string | null;
