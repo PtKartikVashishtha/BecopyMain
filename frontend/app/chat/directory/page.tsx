@@ -1,398 +1,268 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
-import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
+import { chatAPI, inviteAPI, User, APIResponse, PaginatedResponse } from '@/lib/api';
+import UserDirectory from '@/components/chat/UserDirectory';
+import InviteModal from '@/components/chat/InviteModal';
+import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Search,
-  Filter,
-  MessageCircle,
-  ArrowLeft,
-  Users
-} from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import  api  from '@/lib/api';
+import { Users } from 'lucide-react';
 
-// Dynamic import for invite modal
-const InviteModal = dynamic(
-  () => import('@/components/chat/InviteModel'),
-  { ssr: false }
-);
 
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  userType: 'user' | 'recruiter';
-  isActive: boolean;
-  createdAt: string;
-}
 
-interface DirectoryState {
-  users: User[];
-  filteredUsers: User[];
-  loading: boolean;
-  searchQuery: string;
-  userTypeFilter: string;
-  selectedUser: User | null;
-  showInviteModal: boolean;
-  currentPage: number;
-  totalPages: number;
-  hasMore: boolean;
-}
-
-const UserDirectoryPage = () => {
-  const { isAuthenticated, user, loading } = useAuth();
+export default function ChatDirectoryPage() {
   const router = useRouter();
-
-  const [state, setState] = useState<DirectoryState>({
-    users: [],
-    filteredUsers: [],
-    loading: true,
-    searchQuery: '',
-    userTypeFilter: 'all', // ✅ Changed from empty string to 'all'
-    selectedUser: null,
-    showInviteModal: false,
-    currentPage: 1,
-    totalPages: 1,
-    hasMore: true
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20, // Increased limit to show more users
+    total: 0,
+    pages: 0
   });
 
-  useEffect(() => {
-    if (loading) return; // ✅ wait until auth state is known
-    if (!isAuthenticated) {
-      router.push('/login');
-      return;
-    }
-    // loadInitialData();
-  }, [loading, isAuthenticated]);
-
-  useEffect(() => {
-    filterUsers();
-  }, [state.searchQuery, state.userTypeFilter, state.users]);
-
-  const loadUsers = async (page = 1) => {
+  // Load users
+  const loadUsers = useCallback(async () => {
     try {
-      setState(prev => ({ ...prev, loading: page === 1 }));
-
-      const queryParams = new URLSearchParams({
-        page: page.toString(),
-        limit: '20'
+      setLoading(true);
+      
+      // Debug: Check authentication state
+      console.log('Auth state:', { isAuthenticated, user });
+      console.log('Token:', localStorage.getItem('token'));
+      
+      const response: PaginatedResponse<User> = await chatAPI.getUserDirectory({
+        page: pagination.page,
+        limit: pagination.limit,
       });
 
-      const response = await api.get(`/api/users/directory?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+      if (response.success) {
+        setUsers(response.data.users || []);
+        setPagination(response.data.pagination);
+      } else {
+        throw new Error('Failed to load users');
+      }
+    } catch (error: any) {
+      console.error('Load users error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config?.url
       });
-      return response;
-
-    //   if (response.ok) {
-    //     const { data } = await response.json();
-
-    //     setState(prev => ({
-    //       ...prev,
-    //       users: page === 1 ? data.users : [...prev.users, ...data.users],
-    //       currentPage: page,
-    //       totalPages: data.totalPages,
-    //       hasMore: page < data.totalPages,
-    //       loading: false
-    //     }));
-    //   }
-    } catch (error) {
-      console.error('Error loading users:', error);
-      setState(prev => ({ ...prev, loading: false }));
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to load user directory',
+        variant: 'destructive',
+      });
+      setUsers([]);
+      setPagination({ page: 1, limit: 20, total: 0, pages: 0 });
+    } finally {
+      setLoading(false);
     }
+  }, [pagination.page, pagination.limit, toast, isAuthenticated, user]);
+
+  // Refresh users
+  const refreshUsers = async () => {
+    setRefreshing(true);
+    await loadUsers();
+    setRefreshing(false);
+    toast({
+      title: 'Success',
+      description: 'User directory refreshed',
+    });
   };
 
-  const filterUsers = () => {
-    let filtered = [...state.users];
-
-    if (state.searchQuery) {
-      const query = state.searchQuery.toLowerCase();
-      filtered = filtered.filter(user =>
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query)
-      );
-    }
-
-    // ✅ Updated filter logic to handle 'all' instead of empty string
-    if (state.userTypeFilter && state.userTypeFilter !== 'all') {
-      filtered = filtered.filter(user => user.userType === state.userTypeFilter);
-    }
-
-    setState(prev => ({ ...prev, filteredUsers: filtered }));
+  // Handle pagination
+  const handlePageChange = (newPage: number) => {
+    setPagination(prev => ({ ...prev, page: newPage }));
   };
 
-  const handleLoadMore = () => {
-    if (state.hasMore && !state.loading) {
-      loadUsers(state.currentPage + 1);
-    }
-  };
-
+  // Handle invite user
   const handleInviteUser = (user: User) => {
-    setState(prev => ({
-      ...prev,
-      selectedUser: user,
-      showInviteModal: true
-    }));
+    setSelectedUser(user);
+    setInviteModalOpen(true);
   };
 
-  const handleInviteModalClose = () => {
-    setState(prev => ({
-      ...prev,
-      selectedUser: null,
-      showInviteModal: false
-    }));
+  // Handle send invite
+  const handleSendInvite = async () => {
+    if (!selectedUser) return;
+    console.log('Invite sent successfully!');
   };
 
-  const handleSearchChange = (value: string) => {
-    setState(prev => ({ ...prev, searchQuery: value }));
-  };
+  // Load users on mount
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      loadUsers();
+    }
+  }, [isAuthenticated, authLoading, loadUsers]);
 
-  const handleUserTypeFilter = (value: string) => {
-    setState(prev => ({ ...prev, userTypeFilter: value }));
-  };
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, authLoading, router]);
 
-  const clearFilters = () => {
-    setState(prev => ({
-      ...prev,
-      searchQuery: '',
-      userTypeFilter: 'all' // ✅ Reset to 'all' instead of empty string
-    }));
-  };
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Show loading screen while checking auth
-//   if (authLoading) {
-//     return (
-//       <div className="flex items-center justify-center h-screen">
-//         Checking authentication...
-//       </div>
-//     );
-//   }
+  // Show login prompt if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Authentication Required</h2>
+          <p className="text-gray-600 mb-6">Please log in to access the user directory.</p>
+          <Button onClick={() => router.push('/login')}>
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
-//   if (!isAuthenticated) {
-//     return null;
-//   }
+  // Don't render anything while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+
+
+  // Load users on mount
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex items-center mb-8">
-          <Link href="/chat">
-            <Button variant="ghost" className="mr-4">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Chat
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              User Directory
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Find and connect with other users
-            </p>
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <Users className="h-8 w-8 text-blue-600" />
+            <h1 className="text-3xl font-bold text-gray-900">User Directory</h1>
           </div>
-        </div>
-
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search users..."
-                  value={state.searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              <Select value={state.userTypeFilter} onValueChange={handleUserTypeFilter}>
-                <SelectTrigger>
-                  <Users className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="All User Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem> {/* ✅ Changed from "" to "all" */}
-                  <SelectItem value="user">Users</SelectItem>
-                  <SelectItem value="recruiter">Recruiters</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Button 
-                variant="outline" 
-                onClick={clearFilters}
-                className="w-full"
-              >
-                <Filter className="h-4 w-4 mr-2" />
-                Clear Filters
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Results Summary */}
-        <div className="mb-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            {state.loading ? 'Loading...' : `${state.filteredUsers.length} users found`}
+          <p className="text-gray-600">
+            Discover and connect with other users. Send chat invites to start conversations.
           </p>
         </div>
 
-        {/* User Grid */}
-        {state.loading && state.users.length === 0 ? (
-          <UserGridSkeleton />
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {state.filteredUsers.map((user) => (
-                <UserCard
-                  key={user._id}
-                  user={user}
-                  onInvite={() => handleInviteUser(user)}
-                  currentUserId={user?._id || ''} // ✅ Fixed this prop as well
-                />
-              ))}
+        {/* Filters and Search */}
+        {/* Removed Filters and Search section */}
+
+        {/* Results Info */}
+        {!loading && (
+          <div className="mb-6 flex justify-between items-center">
+            <p className="text-gray-600">
+              {pagination.total > 0 
+                ? `Showing ${((pagination.page - 1) * pagination.limit) + 1}-${Math.min(pagination.page * pagination.limit, pagination.total)} of ${pagination.total} users`
+                : 'No users found'
+              }
+            </p>
+          </div>
+        )}
+
+        {/* User Directory */}
+        <UserDirectory
+          onUserSelect={(user) => {
+            console.log('Selected user:', user);
+          }}
+          showInviteButton={true}
+          users={users}
+          pagination={pagination}
+          loading={loading}
+          onRefresh={refreshUsers}
+        />
+
+        {/* Pagination */}
+        {!loading && pagination.pages > 1 && (
+          <div className="mt-8 flex justify-center">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={pagination.page <= 1}
+                onClick={() => handlePageChange(pagination.page - 1)}
+              >
+                Previous
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(pagination.pages, 5) }, (_, index) => {
+                  const pageNum = index + Math.max(1, pagination.page - 2);
+                  if (pageNum > pagination.pages) return null;
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={pageNum === pagination.page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNum)}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                disabled={pagination.page >= pagination.pages}
+                onClick={() => handlePageChange(pagination.page + 1)}
+              >
+                Next
+              </Button>
             </div>
+          </div>
+        )}
 
-            {/* Load More */}
-            {state.hasMore && !state.loading && (
-              <div className="flex justify-center mt-8">
-                <Button 
-                  onClick={handleLoadMore}
-                  variant="outline"
-                  size="lg"
-                >
-                  Load More Users
-                </Button>
-              </div>
-            )}
-
-            {/* No Results */}
-            {state.filteredUsers.length === 0 && !state.loading && (
-              <div className="text-center py-12">
-                <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  No users found
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  Try adjusting your search criteria
-                </p>
-                <Button onClick={clearFilters}>
-                  Clear All Filters
-                </Button>
-              </div>
-            )}
-          </>
+        {/* Empty State */}
+        {!loading && users.length === 0 && (
+          <div className="text-center py-12">
+            <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Users Found</h3>
+            <p className="text-gray-600 mb-4">
+              There are no users available in the directory at the moment.
+            </p>
+          </div>
         )}
       </div>
 
       {/* Invite Modal */}
-      {state.showInviteModal && state.selectedUser && (
+      {selectedUser && (
         <InviteModal
-          user={state.selectedUser}
-          isOpen={state.showInviteModal}
-          onClose={handleInviteModalClose}
-          onInviteSent={handleInviteModalClose}
+          isOpen={inviteModalOpen}
+          onClose={() => {
+            setInviteModalOpen(false);
+            setSelectedUser(null);
+          }}
+          recipientUser={selectedUser} 
+          onInviteSent={handleSendInvite}  
         />
       )}
     </div>
   );
-};
-
-// User Card Component
-const UserCard = ({
-  user,
-  onInvite,
-  currentUserId
-}: {
-  user: User;
-  onInvite: () => void;
-  currentUserId: string;
-}) => {
-  const isCurrentUser = user._id === currentUserId;
-
-  return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-              {user.name}
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              {user.email}
-            </p>
-            <div className="flex items-center space-x-2">
-              <Badge
-                variant={user.userType === 'recruiter' ? 'default' : 'secondary'}
-              >
-                {user.userType}
-              </Badge>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-gray-400">
-            Joined {new Date(user.createdAt).toLocaleDateString()}
-          </div>
-
-          {!isCurrentUser && (
-            <Button
-              size="sm"
-              onClick={onInvite}
-              className="ml-4"
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Invite
-            </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-// Loading Skeleton for User Grid
-const UserGridSkeleton = () => (
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-    {[1, 2, 3, 4, 5, 6].map((i) => (
-      <Card key={i}>
-        <CardContent className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex-1">
-              <Skeleton className="h-5 w-3/4 mb-2" />
-              <Skeleton className="h-4 w-1/2 mb-2" />
-              <div className="flex space-x-2">
-                <Skeleton className="h-5 w-16" />
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-between items-center">
-            <Skeleton className="h-3 w-1/3" />
-            <Skeleton className="h-8 w-20" />
-          </div>
-        </CardContent>
-      </Card>
-    ))}
-  </div>
-);
-
-export default UserDirectoryPage;
+}

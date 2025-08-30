@@ -67,7 +67,7 @@ const chatSessionSchema = new mongoose.Schema({
 
 // Indexes for efficient querying
 chatSessionSchema.index({ participants: 1 });
-chatSessionSchema.index({ talkjsConversationId: 1 });
+//chatSessionSchema.index({ talkjsConversationId: 1 });
 chatSessionSchema.index({ inviteId: 1 });
 chatSessionSchema.index({ lastActivity: -1 });
 chatSessionSchema.index({ status: 1 });

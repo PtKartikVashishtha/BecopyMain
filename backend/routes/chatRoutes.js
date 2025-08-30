@@ -11,16 +11,16 @@ const {
   getChatSession,
   searchUsers
 } = require('../controllers/chatController');
-//const auth = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 
 // Apply authentication middleware to all routes except webhook
-// router.use((req, res, next) => {
-//   // Skip auth for TalkJS webhook
-//   if (req.path === '/webhook') {
-//     return next();
-//   }
-//   return auth(req, res, next);
-// });
+router.use((req, res, next) => {
+  // Skip auth for TalkJS webhook
+  if (req.path === '/webhook') {
+    return next();
+  }
+  return protect(req, res, next);
+});
 
 // @route   GET /api/chat/users
 // @desc    Get user directory for chat discovery
