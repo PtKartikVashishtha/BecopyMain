@@ -4,265 +4,526 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { chatAPI, inviteAPI, User, APIResponse, PaginatedResponse } from '@/lib/api';
-import UserDirectory from '@/components/chat/UserDirectory';
-import InviteModal from '@/components/chat/InviteModal';
-import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Users } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
+import InviteModal from '@/components/chat/InviteModal';
+import { 
+  Users, 
+  Search, 
+  MessageCircle, 
+  Filter,
+  RefreshCw,
+  ArrowLeft,
+  UserPlus,
+  Globe,
+  Briefcase
+} from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-
+interface DirectoryFilters {
+  search: string;
+  userType: string;
+  country: string;
+}
 
 export default function ChatDirectoryPage() {
   const router = useRouter();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [sendingInvite, setSendingInvite] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 20, // Increased limit to show more users
+    limit: 20,
     total: 0,
     pages: 0
   });
+  const [filters, setFilters] = useState<DirectoryFilters>({
+    search: '',
+    userType: '',
+    country: ''
+  });
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [creatingChat, setCreatingChat] = useState<string | null>(null);
 
-  // Load users
-  const loadUsers = useCallback(async () => {
+  // Load users directory
+  const loadUsers = useCallback(async (page = 1, resetData = false) => {
     try {
-      setLoading(true);
+      if (resetData) {
+        setLoading(true);
+      }
       
-      // Debug: Check authentication state
-      console.log('Auth state:', { isAuthenticated, user });
-      console.log('Token:', localStorage.getItem('token'));
-      
-      const response: PaginatedResponse<User> = await chatAPI.getUserDirectory({
-        page: pagination.page,
+      const params = {
+        page,
         limit: pagination.limit,
-      });
+        ...(filters.search && { search: filters.search }),
+        ...(filters.userType && { userType: filters.userType }),
+        ...(filters.country && { country: filters.country })
+      };
 
+      const response: PaginatedResponse<User> = await chatAPI.getUserDirectory(params);
+      
       if (response.success) {
-        setUsers(response.data.users || []);
+        const newUsers = response.data.users || [];
+        setUsers(resetData ? newUsers : [...users, ...newUsers]);
         setPagination(response.data.pagination);
       } else {
-        throw new Error('Failed to load users');
+        toast({
+          title: 'Error',
+          description: 'Failed to load users directory',
+          variant: 'destructive'
+        });
       }
-    } catch (error: any) {
-      console.error('Load users error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        config: error.config?.url
-      });
+    } catch (error) {
+      console.error('Error loading users:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to load user directory',
-        variant: 'destructive',
+        description: 'Failed to load users directory',
+        variant: 'destructive'
       });
-      setUsers([]);
-      setPagination({ page: 1, limit: 20, total: 0, pages: 0 });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [pagination.page, pagination.limit, toast, isAuthenticated, user]);
+  }, [filters, pagination.limit, toast]);
 
-  // Refresh users
-  const refreshUsers = async () => {
+  // Handle search
+  const handleSearch = useCallback((searchTerm: string) => {
+    setFilters(prev => ({ ...prev, search: searchTerm }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }, []);
+
+  // Handle filter change
+  const handleFilterChange = useCallback((key: keyof DirectoryFilters, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }, []);
+
+  // Refresh data
+  const refreshData = useCallback(() => {
     setRefreshing(true);
-    await loadUsers();
-    setRefreshing(false);
-    toast({
-      title: 'Success',
-      description: 'User directory refreshed',
-    });
-  };
+    setPagination(prev => ({ ...prev, page: 1 }));
+    loadUsers(1, true);
+  }, [loadUsers]);
 
-  // Handle pagination
-  const handlePageChange = (newPage: number) => {
-    setPagination(prev => ({ ...prev, page: newPage }));
-  };
-
-  // Handle invite user
-  const handleInviteUser = (user: User) => {
-    setSelectedUser(user);
-    setInviteModalOpen(true);
-  };
+  // Load more users (pagination)
+  const loadMore = useCallback(() => {
+    if (pagination.page < pagination.pages && !loading) {
+      loadUsers(pagination.page + 1, false);
+    }
+  }, [pagination.page, pagination.pages, loading, loadUsers]);
 
   // Handle send invite
-  const handleSendInvite = async () => {
-    if (!selectedUser) return;
-    console.log('Invite sent successfully!');
+  const handleSendInvite = useCallback(async (recipientId: string, message: string) => {
+    try {
+      setSendingInvite(true);
+      
+      const response: APIResponse = await inviteAPI.send({
+        recipientId,
+        message
+      });
+      
+      if (response.success) {
+        toast({
+          title: 'Success',
+          description: 'Invite sent successfully!'
+        });
+        
+        // Update user's invite status in the list
+        setUsers(prev => prev.map(u => 
+          u.id === recipientId 
+            ? { ...u, inviteStatus: { 
+                id: response.data.id,
+                status: 'pending',
+                direction: 'sent',
+                createdAt: new Date().toISOString()
+              }}
+            : u
+        ));
+        
+        setShowInviteModal(false);
+        setSelectedUser(null);
+      } else {
+        toast({
+          title: 'Error',
+          description: response.error || 'Failed to send invite',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error sending invite:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to send invite',
+        variant: 'destructive'
+      });
+    } finally {
+      setSendingInvite(false);
+    }
+  }, [toast]);
+
+  // Open invite modal
+  const openInviteModal = useCallback((user: User) => {
+    setSelectedUser(user);
+    setShowInviteModal(true);
+  }, []);
+
+  // Handle start chat for accepted invites
+  const handleStartChat = async (userItem: User) => {
+    if (!userItem.inviteStatus?.id) {
+      toast({
+        title: 'Error',
+        description: 'No invite found for this user',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setCreatingChat(userItem.id);
+      
+      // Create chat session using the accepted invite
+      const response = await chatAPI.createSession({ 
+        inviteId: userItem.inviteStatus.id 
+      });
+      
+      if (response.success) {
+        // Redirect to chat page with the session selected
+        const sessionId = response.data.chatSession.id;
+        router.push(`/chat?session=${sessionId}`);
+      } else {
+        throw new Error(response.error || 'Failed to create chat session');
+      }
+    } catch (error: any) {
+      console.error('Start chat error:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to start chat',
+        variant: 'destructive',
+      });
+    } finally {
+      setCreatingChat(null);
+    }
   };
 
-  // Load users on mount
-  useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      loadUsers();
-    }
-  }, [isAuthenticated, authLoading, loadUsers]);
-
-  // Redirect to login if not authenticated
+  // Check authentication
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login');
+      return;
     }
-  }, [isAuthenticated, authLoading, router]);
+  }, [authLoading, isAuthenticated, router]);
 
-  // Show loading while checking authentication
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show login prompt if not authenticated
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Authentication Required</h2>
-          <p className="text-gray-600 mb-6">Please log in to access the user directory.</p>
-          <Button onClick={() => router.push('/login')}>
-            Go to Login
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render anything while checking authentication
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
-
-
-
-  // Load users on mount
+  // Load initial data
   useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+    if (isAuthenticated) {
+      loadUsers(1, true);
+    }
+  }, [isAuthenticated, filters]);
+
+  if (authLoading || !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Users className="h-8 w-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">User Directory</h1>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push('/chat')}
+                className="gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Chat
+              </Button>
+              <Users className="h-8 w-8 text-blue-600" />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">User Directory</h1>
+                <p className="text-gray-600 mt-1">
+                  Find and connect with other users
+                </p>
+              </div>
+            </div>
+            
+            <Button
+              variant="outline"
+              onClick={refreshData}
+              disabled={refreshing}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
-          <p className="text-gray-600">
-            Discover and connect with other users. Send chat invites to start conversations.
-          </p>
         </div>
 
-        {/* Filters and Search */}
-        {/* Removed Filters and Search section */}
-
-        {/* Results Info */}
-        {!loading && (
-          <div className="mb-6 flex justify-between items-center">
-            <p className="text-gray-600">
-              {pagination.total > 0 
-                ? `Showing ${((pagination.page - 1) * pagination.limit) + 1}-${Math.min(pagination.page * pagination.limit, pagination.total)} of ${pagination.total} users`
-                : 'No users found'
-              }
-            </p>
-          </div>
-        )}
-
-        {/* User Directory */}
-        <UserDirectory
-          onUserSelect={(user) => {
-            console.log('Selected user:', user);
-          }}
-          showInviteButton={true}
-          users={users}
-          pagination={pagination}
-          loading={loading}
-          onRefresh={refreshUsers}
-        />
-
-        {/* Pagination */}
-        {!loading && pagination.pages > 1 && (
-          <div className="mt-8 flex justify-center">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                disabled={pagination.page <= 1}
-                onClick={() => handlePageChange(pagination.page - 1)}
-              >
-                Previous
-              </Button>
-              
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(pagination.pages, 5) }, (_, index) => {
-                  const pageNum = index + Math.max(1, pagination.page - 2);
-                  if (pageNum > pagination.pages) return null;
-                  
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={pageNum === pagination.page ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handlePageChange(pageNum)}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
+        {/* Filters */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Search & Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search users..."
+                  value={filters.search}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-
-              <Button
-                variant="outline"
-                disabled={pagination.page >= pagination.pages}
-                onClick={() => handlePageChange(pagination.page + 1)}
+              
+              {/* User Type Filter */}
+              <Select
+                value={filters.userType}
+                onValueChange={(value) => handleFilterChange('userType', value)}
               >
-                Next
-              </Button>
+                <SelectTrigger>
+                  <SelectValue placeholder="All User Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All User Types</SelectItem>
+                  <SelectItem value="user">Regular Users</SelectItem>
+                  <SelectItem value="recruiter">Recruiters</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* Country Filter */}
+              <Select
+                value={filters.country}
+                onValueChange={(value) => handleFilterChange('country', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Countries" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Countries</SelectItem>
+                  <SelectItem value="US">United States</SelectItem>
+                  <SelectItem value="UK">United Kingdom</SelectItem>
+                  <SelectItem value="CA">Canada</SelectItem>
+                  <SelectItem value="AU">Australia</SelectItem>
+                  <SelectItem value="DE">Germany</SelectItem>
+                  <SelectItem value="FR">France</SelectItem>
+                  <SelectItem value="IN">India</SelectItem>
+                  <SelectItem value="CN">China</SelectItem>
+                  <SelectItem value="JP">Japan</SelectItem>
+                  <SelectItem value="BR">Brazil</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </div>
-        )}
+          </CardContent>
+        </Card>
 
-        {/* Empty State */}
-        {!loading && users.length === 0 && (
-          <div className="text-center py-12">
-            <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Users Found</h3>
-            <p className="text-gray-600 mb-4">
-              There are no users available in the directory at the moment.
-            </p>
+        {/* Users Grid */}
+        {loading && users.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <div className="flex items-center space-x-4">
+                    <Skeleton className="h-12 w-12 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-[150px]" />
+                      <Skeleton className="h-4 w-[100px]" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-10 w-full mt-4" />
+                </CardContent>
+              </Card>
+            ))}
           </div>
+        ) : users.length === 0 ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Users className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No users found</h3>
+              <p className="text-gray-600 mb-4">
+                {filters.search || filters.userType || filters.country
+                  ? 'Try adjusting your search filters'
+                  : 'No users available at the moment'}
+              </p>
+              {(filters.search || filters.userType || filters.country) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFilters({ search: '', userType: '', country: '' });
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {users.map((userItem) => {
+                // Don't show current user
+                if (userItem.id === user?.id) return null;
+                
+                const canSendInvite = !userItem.inviteStatus || 
+                  userItem.inviteStatus.status === 'declined';
+                
+                return (
+                  <Card key={userItem.id} className="hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-4 mb-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarFallback className="bg-blue-100 text-blue-600">
+                            {userItem.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-medium text-gray-900 truncate">
+                            {userItem.name}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            {userItem.userType === 'recruiter' ? (
+                              <Badge variant="secondary" className="gap-1">
+                                <Briefcase className="h-3 w-3" />
+                                Recruiter
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="gap-1">
+                                <Users className="h-3 w-3" />
+                                User
+                              </Badge>
+                            )}
+                            {userItem.country && (
+                              <Badge variant="outline" className="gap-1">
+                                <Globe className="h-3 w-3" />
+                                {userItem.country}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Invite Status */}
+                      {userItem.inviteStatus && (
+                        <div className="mb-4">
+                          {userItem.inviteStatus.status === 'pending' && (
+                            <Alert>
+                              <AlertDescription>
+                                {userItem.inviteStatus.direction === 'sent'
+                                  ? 'Invite sent - waiting for response'
+                                  : 'You have a pending invite from this user'}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          {userItem.inviteStatus.status === 'accepted' && (
+                            <Alert>
+                              <AlertDescription className="text-green-600">
+                                You can now chat with this user!
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Action Button */}
+                      {canSendInvite ? (
+                        <Button
+                          onClick={() => openInviteModal(userItem)}
+                          className="w-full gap-2"
+                          disabled={sendingInvite}
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          Send Invite
+                        </Button>
+                      ) : userItem.inviteStatus?.status === 'accepted' ? (
+                        <Button
+                          onClick={() => handleStartChat(userItem)}
+                          variant="outline"
+                          className="w-full gap-2"
+                          disabled={creatingChat === userItem.id}
+                        >
+                          {creatingChat === userItem.id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                          ) : (
+                            <MessageCircle className="h-4 w-4" />
+                          )}
+                          {creatingChat === userItem.id ? 'Creating Chat...' : 'Start Chat'}
+                        </Button>
+                      ) : (
+                        <Button disabled className="w-full">
+                          {userItem.inviteStatus?.direction === 'sent'
+                            ? 'Invite Sent'
+                            : 'Invite Received'}
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+            
+            {/* Load More */}
+            {pagination.page < pagination.pages && (
+              <div className="text-center mt-8">
+                <Button
+                  onClick={loadMore}
+                  disabled={loading}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  {loading ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Load More'
+                  )}
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
-
+      
       {/* Invite Modal */}
-      {selectedUser && (
-        <InviteModal
-          isOpen={inviteModalOpen}
-          onClose={() => {
-            setInviteModalOpen(false);
-            setSelectedUser(null);
-          }}
-          recipientUser={selectedUser} 
-          onInviteSent={handleSendInvite}  
-        />
-      )}
+      <InviteModal
+        isOpen={showInviteModal}
+        onClose={() => {
+          setShowInviteModal(false);
+          setSelectedUser(null);
+        }}
+        user={selectedUser}
+        onSendInvite={handleSendInvite}
+        loading={sendingInvite}
+      />
     </div>
   );
 }

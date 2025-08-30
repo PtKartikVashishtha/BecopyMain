@@ -136,8 +136,14 @@ const getUserDirectory = async (req, res) => {
 // Create chat session after invite acceptance
 const createChatSession = async (req, res) => {
   try {
+    console.log('=== CREATE CHAT SESSION REQUEST ===');
+    console.log('Request body:', req.body);
+    console.log('User ID:', req.user?.id);
+    console.log('User object:', req.user);
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('Validation errors:', errors.array());
       return res.status(400).json({
         success: false,
         error: 'Validation failed',
@@ -147,6 +153,9 @@ const createChatSession = async (req, res) => {
 
     const { inviteId } = req.body;
     const userId = req.user.id;
+    
+    console.log('Processing invite ID:', inviteId);
+    console.log('Current user ID:', userId);
 
     // Find accepted invite
     const invite = await Invite.findOne({
@@ -227,9 +236,13 @@ const createChatSession = async (req, res) => {
 
   } catch (error) {
     console.error('Create chat session error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Request body:', req.body);
+    console.error('User ID:', req.user?.id);
     res.status(500).json({
       success: false,
-      error: 'Failed to create chat session'
+      error: 'Failed to create chat session',
+      details: error.message
     });
   }
 };
@@ -246,16 +259,31 @@ const getUserChatSessions = async (req, res) => {
 
     const skip = (page - 1) * limit;
 
+    console.log('Fetching chat sessions for user:', userId, 'with status:', status);
+
+    // Check if user has any accepted invites first
+    const acceptedInvites = await Invite.find({
+      $or: [
+        { sender: userId, status: 'accepted' },
+        { recipient: userId, status: 'accepted' }
+      ]
+    });
+    console.log('User has', acceptedInvites.length, 'accepted invites');
+
     const sessions = await ChatSession.findUserChats(userId, {
       status,
       limit: parseInt(limit),
       skip
     });
 
+    console.log('Found sessions:', sessions.length);
+
     const totalCount = await ChatSession.countDocuments({
       participants: userId,
       status
     });
+
+    console.log('Total count:', totalCount);
 
     // Format sessions with other participant info
     const formattedSessions = sessions.map(session => {

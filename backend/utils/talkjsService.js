@@ -29,22 +29,25 @@ const talkjsAPI = axios.create({
  */
 const createTalkJSUser = async (user) => {
   try {
+    // Handle both _id and id properties
+    const userId = (user._id || user.id || '').toString();
+    
+    if (!userId) {
+      throw new Error('User ID is missing');
+    }
+    
     const talkjsUser = {
-      id: user._id.toString(),
-      name: user.name,
-      email: user.email,
-      role: user.userType,
+      id: userId,
+      name: user.name || 'Unknown User',
+      email: user.email || null,
+      role: user.userType || 'user',
       photoUrl: user.profileImage || null,
-      custom: {
-        country: user.country,
-        userType: user.userType,
-        isEmailVerified: user.isEmailVerified
-      }
+      custom: {}
     };
 
-    const response = await talkjsAPI.put(`/users/${user._id}`, talkjsUser);
+    const response = await talkjsAPI.put(`/users/${userId}`, talkjsUser);
     
-    console.log(`TalkJS user created/updated: ${user._id}`);
+    console.log(`TalkJS user created/updated: ${userId}`);
     return response.data;
 
   } catch (error) {
@@ -62,23 +65,28 @@ const createTalkJSUser = async (user) => {
  */
 const createTalkJSConversation = async (conversationId, participants, options = {}) => {
   try {
+    console.log('Creating TalkJS conversation with participants:', participants);
+    
+    // TalkJS expects participants as an array of user IDs
+    // Handle both _id and id properties
+    const participantIds = participants.map(participant => {
+      const id = (participant._id || participant.id || '').toString();
+      if (!id) {
+        throw new Error('Participant ID is missing');
+      }
+      return id;
+    });
+    
     const conversation = {
-      participants: {},
-      subject: options.subject || `Chat between ${participants.map(p => p.name).join(' and ')}`,
+      participants: participantIds,
+      subject: options.subject || `Chat between ${participants.map(p => p.name || 'Unknown').join(' and ')}`,
       custom: {
         inviteId: options.inviteId || null,
         chatType: 'one-on-one'
       }
     };
 
-    // Add participants to conversation
-    participants.forEach(participant => {
-      conversation.participants[participant._id.toString()] = {
-        access: 'ReadWrite',
-        notify: true
-      };
-    });
-
+    console.log('TalkJS conversation payload:', JSON.stringify(conversation, null, 2));
     const response = await talkjsAPI.put(`/conversations/${conversationId}`, conversation);
     
     console.log(`TalkJS conversation created: ${conversationId}`);
@@ -98,14 +106,21 @@ const createTalkJSConversation = async (conversationId, participants, options = 
  */
 const generateTalkJSToken = (userId, expiresIn = 3600) => {
   try {
+    // Ensure userId is a string
+    const userIdStr = (userId || '').toString();
+    
+    if (!userIdStr) {
+      throw new Error('User ID is required for token generation');
+    }
+    
     const header = {
       typ: 'JWT',
       alg: 'HS256'
     };
 
     const payload = {
-      iss: TALKJS_CONFIG.appId,
-      sub: userId.toString(),
+      appId: TALKJS_CONFIG.appId,
+      userId: userIdStr,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + expiresIn
     };
@@ -121,7 +136,7 @@ const generateTalkJSToken = (userId, expiresIn = 3600) => {
 
     const token = `${encodedHeader}.${encodedPayload}.${signature}`;
     
-    console.log(`TalkJS token generated for user: ${userId}`);
+    console.log(`TalkJS token generated for user: ${userIdStr}`);
     return token;
 
   } catch (error) {
@@ -139,17 +154,23 @@ const generateTalkJSToken = (userId, expiresIn = 3600) => {
  */
 const addUserToConversation = async (conversationId, userId, access = 'ReadWrite') => {
   try {
+    const userIdStr = (userId || '').toString();
+    
+    if (!userIdStr) {
+      throw new Error('User ID is required');
+    }
+    
     const participant = {
       access: access,
       notify: true
     };
 
     const response = await talkjsAPI.put(
-      `/conversations/${conversationId}/participants/${userId}`, 
+      `/conversations/${conversationId}/participants/${userIdStr}`, 
       participant
     );
     
-    console.log(`User ${userId} added to conversation ${conversationId}`);
+    console.log(`User ${userIdStr} added to conversation ${conversationId}`);
     return response.data;
 
   } catch (error) {
@@ -166,9 +187,15 @@ const addUserToConversation = async (conversationId, userId, access = 'ReadWrite
  */
 const removeUserFromConversation = async (conversationId, userId) => {
   try {
-    const response = await talkjsAPI.delete(`/conversations/${conversationId}/participants/${userId}`);
+    const userIdStr = (userId || '').toString();
     
-    console.log(`User ${userId} removed from conversation ${conversationId}`);
+    if (!userIdStr) {
+      throw new Error('User ID is required');
+    }
+    
+    const response = await talkjsAPI.delete(`/conversations/${conversationId}/participants/${userIdStr}`);
+    
+    console.log(`User ${userIdStr} removed from conversation ${conversationId}`);
     return response.data;
 
   } catch (error) {

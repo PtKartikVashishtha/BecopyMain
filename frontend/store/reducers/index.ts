@@ -11,6 +11,7 @@ import dashStringSlice from './dashStringSlice';
 import settingSlice from './settingSlice'
 
 import inviteSlice from './inviteSlice';
+import chatSlice from './chatSlice';
 const rootReducer = combineReducers({
   // Add your reducers here
   contributors: contributorReducer,
@@ -21,7 +22,8 @@ const rootReducer = combineReducers({
   jobs: jobReducer,
   dashboardstring: dashStringSlice,
   settings: settingSlice,
-  invites: inviteSlice
+  invites: inviteSlice,
+  chat: chatSlice
 });
 
 export default rootReducer;

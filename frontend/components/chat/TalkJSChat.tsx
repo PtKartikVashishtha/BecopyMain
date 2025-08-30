@@ -1,383 +1,371 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import Talk from 'talkjs';
-import {
-  initializeTalkJS,
-  createTalkJSSession,
-  createTalkJSConversation,
-  getChatboxOptions,
-  getPopupOptions,
-  getInboxOptions,
-  getConversationId,
-  isMobileDevice,
-  cleanupTalkJSSession,
-  handleTalkJSError
-} from '../../lib/talkjs';
-import {
-  selectCurrentSession,
-  selectTalkJSSession,
-  fetchTalkJSToken,
-  updateChatSessionActivity,
-  setActiveChatId,
-  fetchChatSession
-} from '../../store/reducers/chatSlice';
-import type { ChatSession } from '../../lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { chatAPI, ChatSession } from '@/lib/api';
+import { createTalkJSConversation, getChatboxOptions } from '@/lib/talkjs';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  MessageCircle, 
+  AlertTriangle, 
+  RefreshCw,
+  ArrowLeft,
+  Users
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
 
 interface TalkJSChatProps {
-  // Chat session data
-  chatSession?: ChatSession;
-  conversationId?: string; // Added to support passing session ID directly
-  
-  // Display modes
-  mode?: 'chatbox' | 'popup' | 'inbox';
-  
-  // Layout options
-  height?: string | number;
-  width?: string | number;
-  className?: string;
-  
-  // Behavior options
-  showWelcomeMessage?: boolean;
-  welcomeMessage?: string;
-  autoFocus?: boolean;
-  
-  // Event handlers
-  onReady?: (session: Talk.Session) => void;
-  onMessage?: (message: Talk.Message) => void;
-  onError?: (error: Error) => void;
-  
-  // Mobile optimization
-  isMobile?: boolean;
-  
-  // Advanced options
-  customTheme?: Talk.StyleSet;
-  enableFileSharing?: boolean;
-  enableReactions?: boolean;
+  sessionId?: string;
+  onSessionChange?: (session: ChatSession | null) => void;
 }
 
-const TalkJSChat: React.FC<TalkJSChatProps> = ({
-  chatSession,
-  conversationId,
-  mode = 'chatbox',
-  height = '500px',
-  width = '100%',
-  className = '',
-  showWelcomeMessage = true,
-  welcomeMessage = 'Welcome to the chat! Feel free to start a conversation.',
-  autoFocus = true,
-  onReady,
-  onMessage,
-  onError,
-  isMobile = false,
-  customTheme,
-  enableFileSharing = true,
-  enableReactions = true
-}) => {
-  const dispatch = useDispatch();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const sessionRef = useRef<Talk.Session | null>(null);
-  const uiRef = useRef<Talk.Chatbox | Talk.Popup | Talk.Inbox | null>(null);
+export default function TalkJSChat({ sessionId, onSessionChange }: TalkJSChatProps) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { toast } = useToast();
   
-  // Redux state
-  const currentSession = useSelector(selectCurrentSession);
-  const talkjsSession = useSelector(selectTalkJSSession);
-  
-  // Local state
-  const [isLoading, setIsLoading] = useState(true);
+  const chatboxRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [messageCount, setMessageCount] = useState(0);
-  
-  // Use chatSession prop if provided, otherwise fall back to currentSession
-  const activeSession = chatSession || currentSession;
-  
-  // Detect mobile if not explicitly set
-  const isMobileView = isMobile || (typeof window !== 'undefined' && isMobileDevice());
-  
-  // Fetch session if only conversationId is provided
+  const [session, setSession] = useState<ChatSession | null>(null);
+  const [talkjsLoaded, setTalkjsLoaded] = useState(false);
+  const [chatbox, setChatbox] = useState<any>(null);
+  const [retrying, setRetrying] = useState(false);
+
+  // Load TalkJS SDK
   useEffect(() => {
-    if (conversationId && !chatSession && !currentSession) {
-      dispatch(fetchChatSession(conversationId));
-    }
-  }, [conversationId, chatSession, currentSession, dispatch]);
-  
-  // Initialize TalkJS session
-  const initializeSession = useCallback(async () => {
-    if (!activeSession || !talkjsSession) {
-      setError('No active chat session or TalkJS session available');
-      setIsLoading(false);
-      return;
-    }
-    
+    const loadTalkJS = async () => {
+      try {
+        // Check if TalkJS is already loaded
+        if (typeof window !== 'undefined' && (window as any).Talk) {
+          setTalkjsLoaded(true);
+          return;
+        }
+
+        // Load TalkJS SDK
+        const script = document.createElement('script');
+        script.src = 'https://cdn.talkjs.com/talk.js';
+        script.async = true;
+        
+        script.onload = () => {
+          setTalkjsLoaded(true);
+        };
+        
+        script.onerror = () => {
+          setError('Failed to load TalkJS SDK');
+          setLoading(false);
+        };
+        
+        document.head.appendChild(script);
+      } catch (error) {
+        console.error('Error loading TalkJS:', error);
+        setError('Failed to initialize chat');
+        setLoading(false);
+      }
+    };
+
+    loadTalkJS();
+  }, []);
+
+  // Load chat session
+  const loadChatSession = async (sessionId: string) => {
     try {
-      setIsLoading(true);
+      setLoading(true);
       setError(null);
       
-      // Initialize TalkJS
-      await initializeTalkJS();
+      const response = await chatAPI.getSession(sessionId);
       
-      // Create TalkJS session with authenticated user
-      const session = await createTalkJSSession(
-        talkjsSession.user,
-        talkjsSession.token
-      );
-      
-      sessionRef.current = session;
-      
-      // Create conversation with other participant
-      const conversationIdToUse = conversationId || getConversationId(activeSession.id);
-      const conversation = createTalkJSConversation(
-        session,
-        conversationIdToUse,
-        [
-          talkjsSession.user,
-          {
-            id: activeSession.otherParticipant.id,
-            name: activeSession.otherParticipant.name,
-            email: `${activeSession.otherParticipant.id}@placeholder.com`,
-            userType: activeSession.otherParticipant.userType
-          }
-        ],
-        {
-          subject: `Chat with ${activeSession.otherParticipant.name}`,
-          welcomeMessages: showWelcomeMessage ? [welcomeMessage] : undefined
-        }
-      );
-      
-      // Set up message listeners
-      conversation.onMessage((message) => {
-        setMessageCount(prev => prev + 1);
-        
-        // Update Redux state with new message activity
-        dispatch(updateChatSessionActivity({
-          sessionId: activeSession.id,
-          lastMessage: message.text || 'File shared',
-          lastActivity: new Date().toISOString(),
-          messageCount: messageCount + 1
-        }));
-        
-        // Call external handler
-        onMessage?.(message);
-      });
-      
-      // Set active chat ID in Redux
-      dispatch(setActiveChatId(activeSession.id));
-      
-      // Create UI based on mode
-      if (containerRef.current) {
-        await createChatUI(session, conversation);
+      if (response.success && response.data && response.data.session) {
+        setSession(response.data.session);
+        onSessionChange?.(response.data.session);
+      } else {
+        setError(response.error || 'Failed to load chat session');
       }
-      
-      setIsInitialized(true);
-      setIsLoading(false);
-      
-      // Call ready handler
-      onReady?.(session);
-      
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to initialize TalkJS');
-      console.error('TalkJS initialization error:', error);
-      setError(error.message);
-      setIsLoading(false);
-      onError?.(error);
-    }
-  }, [activeSession, talkjsSession, mode, showWelcomeMessage, welcomeMessage, onReady, onMessage, onError, messageCount, dispatch, conversationId]);
-  
-  // Create TalkJS UI based on mode
-  const createChatUI = async (session: Talk.Session, conversation: Talk.ConversationBuilder) => {
-    if (!containerRef.current) return;
-    
-    // Clean up existing UI
-    if (uiRef.current) {
-      try {
-        uiRef.current.destroy();
-      } catch (error) {
-        console.warn('Error destroying previous TalkJS UI:', error);
-      }
-    }
-    
-    // Get mount options
-    const baseOptions = {
-      ...getChatboxOptions(isMobileView),
-      ...(customTheme && { styles: customTheme }),
-      enableFileSharing,
-      enableReactions
-    };
-    
-    try {
-      switch (mode) {
-        case 'popup':
-          uiRef.current = session.createPopup(conversation, {
-            ...getPopupOptions(),
-            ...baseOptions
-          });
-          break;
-          
-        case 'inbox':
-          uiRef.current = session.createInbox({
-            ...getInboxOptions(),
-            ...baseOptions
-          });
-          break;
-          
-        case 'chatbox':
-        default:
-          uiRef.current = session.createChatbox(conversation, {
-            ...baseOptions,
-            height: typeof height === 'number' ? `${height}px` : height,
-            width: typeof width === 'number' ? `${width}px` : width
-          });
-          break;
-      }
-      
-      // Mount the UI
-      uiRef.current.mount(containerRef.current);
-      
-      // Auto focus if enabled
-      if (autoFocus && mode === 'chatbox') {
-        setTimeout(() => {
-          const messageInput = containerRef.current?.querySelector('input[type="text"], textarea');
-          if (messageInput && 'focus' in messageInput) {
-            (messageInput as HTMLElement).focus();
-          }
-        }, 1000);
-      }
-      
     } catch (error) {
-      handleTalkJSError(error, 'create UI');
+      console.error('Error loading chat session:', error);
+      setError('Failed to load chat session');
+    } finally {
+      setLoading(false);
     }
   };
-  
-  // Fetch TalkJS token on mount
-  useEffect(() => {
-    if (!talkjsSession) {
-      dispatch(fetchTalkJSToken());
+
+  // Initialize TalkJS chat
+  const initializeChat = async () => {
+    if (!talkjsLoaded || !session || !user || !chatboxRef.current) {
+      return;
     }
-  }, [dispatch, talkjsSession]);
-  
-  // Initialize session when dependencies are ready
-  useEffect(() => {
-    if (activeSession && talkjsSession && !isInitialized) {
-      initializeSession();
+
+    try {
+      const Talk = (window as any).Talk;
+      
+      if (!Talk) {
+        throw new Error('TalkJS SDK not loaded');
+      }
+
+      // Get TalkJS token from backend
+      const tokenResponse = await chatAPI.getTalkJSToken();
+      
+      if (!tokenResponse.success || !tokenResponse.data?.token) {
+        throw new Error('Failed to get TalkJS token');
+      }
+
+      // Initialize TalkJS session
+      await Talk.ready;
+      
+      // Create Talk.User instance for the current user
+      const me = new Talk.User({
+        id: user.id,
+        name: user.name,
+        email: user.email || null,
+        role: 'default'
+      });
+      
+      const talkSession = new Talk.Session({
+        appId: process.env.NEXT_PUBLIC_TALKJS_APP_ID,
+        me: me,
+        signature: tokenResponse.data.token
+      });
+
+      // Create conversation
+      if (!session.otherParticipant) {
+        throw new Error('Other participant data is missing');
+      }
+      
+      // Create the conversation
+      const conversation = talkSession.getOrCreateConversation(session.talkjsConversationId);
+      
+      // Add current user (already added as 'me' in session)
+      conversation.setParticipant(me);
+      
+      // Create and add other participant
+      const otherUser = new Talk.User({
+        id: session.otherParticipant.id,
+        name: session.otherParticipant.name,
+        email: session.otherParticipant.email || null,
+        role: session.otherParticipant.userType || 'default'
+      });
+      
+      conversation.setParticipant(otherUser);
+
+      // Get chatbox options based on screen size
+      const options = getChatboxOptions();
+      
+      // Create and mount chatbox
+      const newChatbox = talkSession.createChatbox(conversation, options);
+      newChatbox.mount(chatboxRef.current);
+      
+      setChatbox(newChatbox);
+      setLoading(false);
+      
+    } catch (error) {
+      console.error('Error initializing TalkJS chat:', error);
+      setError('Failed to initialize chat interface');
+      setLoading(false);
     }
-  }, [activeSession, talkjsSession, isInitialized, initializeSession]);
-  
+  };
+
+  // Retry initialization
+  const retryInitialization = async () => {
+    setRetrying(true);
+    setError(null);
+    
+    if (sessionId) {
+      await loadChatSession(sessionId);
+    }
+    
+    setRetrying(false);
+  };
+
+  // Load session when sessionId changes
+  useEffect(() => {
+    if (sessionId) {
+      loadChatSession(sessionId);
+    } else {
+      setSession(null);
+      setLoading(false);
+    }
+  }, [sessionId]);
+
+  // Initialize chat when dependencies are ready
+  useEffect(() => {
+    if (talkjsLoaded && session && user) {
+      initializeChat();
+    }
+  }, [talkjsLoaded, session, user]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (uiRef.current) {
+      if (chatbox) {
         try {
-          uiRef.current.destroy();
+          chatbox.destroy();
         } catch (error) {
-          console.warn('Error destroying TalkJS UI on unmount:', error);
-        }
-      }
-      
-      if (sessionRef.current) {
-        cleanupTalkJSSession(sessionRef.current);
-      }
-      
-      dispatch(setActiveChatId(null));
-    };
-  }, [dispatch]);
-  
-  // Handle window resize for responsive behavior
-  useEffect(() => {
-    if (!isInitialized || mode !== 'chatbox') return;
-    
-    const handleResize = () => {
-      if (uiRef.current && containerRef.current) {
-        // TalkJS handles responsive behavior internally
-        // Just ensure container dimensions are updated
-        const rect = containerRef.current.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) {
-          // Container is hidden, may need to remount when visible
-          setTimeout(() => {
-            if (containerRef.current && sessionRef.current) {
-              // Remount if container becomes visible again
-              const newRect = containerRef.current.getBoundingClientRect();
-              if (newRect.width > 0 && newRect.height > 0 && !uiRef.current) {
-                initializeSession();
-              }
-            }
-          }, 100);
+          console.error('Error destroying chatbox:', error);
         }
       }
     };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [isInitialized, mode, initializeSession]);
-  
-  // Loading state
-  if (isLoading || (!activeSession && conversationId)) {
+  }, [chatbox]);
+
+  // No session selected
+  if (!sessionId) {
     return (
-      <div 
-        className={`flex items-center justify-center bg-gray-50 rounded-lg border ${className}`}
-        style={{ height, width }}
-      >
-        <div className="flex flex-col items-center space-y-3">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-sm text-gray-600">
-            {!activeSession && !conversationId ? 'No active chat session' : 'Loading chat...'}
-          </p>
-        </div>
-      </div>
+      <Card className="h-full">
+        <CardContent className="h-full flex items-center justify-center p-12">
+          <div className="text-center">
+            <MessageCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No Chat Selected
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Select a chat session to start messaging
+            </p>
+            <Button
+              onClick={() => router.push('/chat/directory')}
+              className="gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Browse Users
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
-  
+
+  // Loading state
+  if (loading) {
+    return (
+      <Card className="h-full">
+        <CardContent className="h-full p-6">
+          <div className="space-y-4">
+            {/* Header skeleton */}
+            <div className="flex items-center space-x-3 pb-4 border-b">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </div>
+            
+            {/* Messages skeleton */}
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+                  <div className={`max-w-xs space-y-2 ${i % 2 === 0 ? 'order-1' : 'order-2'}`}>
+                    <Skeleton className="h-16 w-48 rounded-lg" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Input skeleton */}
+            <div className="absolute bottom-6 left-6 right-6">
+              <Skeleton className="h-12 w-full rounded-lg" />
+            </div>
+          </div>
+          
+          <div className="absolute inset-0 flex items-center justify-center bg-white/80">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-600">
+                {retrying ? 'Retrying...' : 'Loading chat...'}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // Error state
   if (error) {
     return (
-      <div 
-        className={`flex items-center justify-center bg-red-50 border border-red-200 rounded-lg ${className}`}
-        style={{ height, width }}
-      >
-        <div className="flex flex-col items-center space-y-3 p-4 text-center">
-          <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
+      <Card className="h-full">
+        <CardContent className="h-full flex items-center justify-center p-12">
+          <div className="text-center max-w-md">
+            <AlertTriangle className="h-16 w-16 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Chat Error
+            </h3>
+            <Alert className="mb-6">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+            <div className="flex gap-3 justify-center">
+              <Button
+                variant="outline"
+                onClick={() => router.push('/chat')}
+                className="gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Chat
+              </Button>
+              <Button
+                onClick={retryInitialization}
+                disabled={retrying}
+                className="gap-2"
+              >
+                {retrying ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {retrying ? 'Retrying...' : 'Retry'}
+              </Button>
+            </div>
           </div>
-          <div>
-            <p className="font-medium text-red-900 mb-1">Chat failed to load</p>
-            <p className="text-sm text-red-700 mb-3">{error}</p>
-            <button
-              onClick={() => {
-                setError(null);
-                setIsInitialized(false);
-                initializeSession();
-              }}
-              className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
-  
-  // Chat container
-  return (
-    <div className={`talkjs-container ${className}`}>
-      <div 
-        ref={containerRef}
-        className="talkjs-chat-container w-full h-full rounded-lg overflow-hidden border border-gray-200"
-        style={{ height, width, minHeight: '300px' }}
-      />
-      
-      {/* Chat session info overlay (optional) */}
-      {activeSession && (
-        <div className="hidden">
-          <span data-testid="chat-session-id">{activeSession.id}</span>
-          <span data-testid="chat-participant">{activeSession.otherParticipant.name}</span>
-        </div>
-      )}
-    </div>
-  );
-};
 
-export default TalkJSChat;
+  // Chat interface
+  return (
+    <Card className="h-full">
+      <CardContent className="h-full p-0">
+        {/* Chat Header */}
+        {session && (
+          <div className="flex items-center justify-between p-4 border-b bg-white">
+            <div className="flex items-center space-x-3">
+              <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <MessageCircle className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-medium text-gray-900">
+                  {String(session.otherParticipant?.name || 'Unknown User')}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {String(session.otherParticipant?.userType || 'User')}
+                </p>
+              </div>
+            </div>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push('/chat')}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Button>
+          </div>
+        )}
+        
+        {/* TalkJS Chat Container */}
+        <div 
+          ref={chatboxRef} 
+          className="h-full"
+          style={{ 
+            minHeight: session ? 'calc(100% - 73px)' : '100%',
+            height: session ? 'calc(100% - 73px)' : '100%'
+          }}
+        />
+      </CardContent>
+    </Card>
+  );
+}

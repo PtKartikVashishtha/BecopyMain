@@ -34,7 +34,7 @@ export const initializeTalkJS = async (): Promise<typeof Talk> => {
 export const createTalkJSUser = (userData: {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   userType?: string;
   country?: string;
 }): Talk.User => {
@@ -45,7 +45,7 @@ export const createTalkJSUser = (userData: {
   return new talkjsInstance.User({
     id: userData.id,
     name: userData.name,
-    email: userData.email,
+    email: userData.email || null,
     role: userData.userType || 'user',
     photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(
       userData.name
@@ -64,7 +64,7 @@ export const createTalkJSSession = async (
   user: {
     id: string;
     name: string;
-    email: string;
+    email: string | null;
     userType?: string;
     country?: string;
   },
@@ -92,7 +92,7 @@ export const createTalkJSConversation = (
   participants: Array<{
     id: string;
     name: string;
-    email: string;
+    email: string | null;
     userType?: string;
     country?: string;
   }>,

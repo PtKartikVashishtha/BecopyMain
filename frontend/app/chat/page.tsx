@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -47,6 +47,7 @@ interface ChatOverview {
 
 export default function ChatPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
@@ -123,6 +124,22 @@ export default function ChatPage() {
     }
   }, [isAuthenticated, authLoading, loadChatOverview]);
 
+  // Handle session selection from URL parameter
+  useEffect(() => {
+    const sessionParam = searchParams.get('session');
+    if (sessionParam && chatSessions.length > 0) {
+      // Find the session that matches the parameter
+      const targetSession = chatSessions.find(session => 
+          session.talkjsConversationId === sessionParam || session.id === sessionParam
+        );
+        if (targetSession) {
+          setSelectedSessionId(targetSession.id);
+        // Clear the URL parameter
+        router.replace('/chat', { scroll: false });
+      }
+    }
+  }, [searchParams, chatSessions, router]);
+
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -159,7 +176,7 @@ export default function ChatPage() {
 
   // Handle session selection
   const handleSessionSelect = (session: ChatSession) => {
-    setSelectedSessionId(session.talkjsConversationId || session.id);
+    setSelectedSessionId(session.id);
   };
 
   // Archive session
@@ -342,7 +359,7 @@ export default function ChatPage() {
                 ) : (
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {chatSessions.map((session) => {
-                      const isSelected = selectedSessionId === (session.talkjsConversationId || session.id);
+                      const isSelected = selectedSessionId === session.id;
                       
                       return (
                         <div
@@ -368,14 +385,14 @@ export default function ChatPage() {
                                 </h4>
                                 {session.otherParticipant?.userType && (
                                   <Badge variant="secondary" className="text-xs">
-                                    {session.otherParticipant.userType}
+                                    {String(session.otherParticipant.userType)}
                                   </Badge>
                                 )}
                               </div>
                               
                               {session.lastMessage && (
                                 <p className="text-sm text-gray-500 truncate mb-1">
-                                  {session.lastMessage}
+                                  {String(session.lastMessage)}
                                 </p>
                               )}
                               
@@ -424,7 +441,7 @@ export default function ChatPage() {
                   <div className="space-y-2">
                     {pendingInvites.slice(0, 3).map((invite) => (
                       <div key={invite.id} className="flex items-center justify-between text-sm">
-                        <span className="truncate">{invite.sender?.name}</span>
+                        <span className="truncate">{String(invite.sender?.name || 'Unknown')}</span>
                         <Badge variant="outline" className="text-xs">
                           Pending
                         </Badge>
@@ -452,7 +469,7 @@ export default function ChatPage() {
               <CardContent className="p-0 h-full">
                 {selectedSessionId ? (
                   <TalkJSChat 
-                    conversationId={selectedSessionId}
+                    sessionId={selectedSessionId}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full">
