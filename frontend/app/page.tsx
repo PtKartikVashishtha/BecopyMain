@@ -390,7 +390,7 @@ export default function Home() {
                   hasButtons={selectedProgram.name !== ""}
                   bgColor={settings?.item?.javaBackgroundColor}
                   footerBgColor={settings?.item?.javaFooterBackgroundColor}
-                  fontSize={settings?.item?.javaFontSize || settings?.item?.pythonFontSize || "14px"}
+                  fontSize={settings?.item?.pythonFontSize || "14px"}
                 />
               )}
 

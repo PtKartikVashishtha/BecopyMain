@@ -143,7 +143,7 @@ const Sidebar = ({
     return () => {
       abortController.abort();
     };
-  }, [dispatch]); // Only depend on dispatch
+  }, [dispatch]);
 
   // FIXED: Remove the problematic useEffect that was causing infinite updates
   // Instead, initialize expandedCategories only when categories are first loaded
@@ -151,21 +151,35 @@ const Sidebar = ({
     if (categories.length > 0 && expandedCategories.length === 0 && isMountedRef.current) {
       setExpandedCategories([categories[0].name]);
     }
-  }, [categories.length]); // Only depend on categories.length, not the full array
+  }, [categories.length]);
+
+  // FIXED: Group programs by category ID properly
+  const groupProgramsByCategory = useMemo(() => {
+    const grouped: CategoryPrograms = {};
+    
+    categories.forEach(category => {
+      // Match programs by category._id to category._id
+      const categoryPrograms = programs.filter(program => program.category === category._id);
+      grouped[category.name] = categoryPrograms;
+    });
+    
+    return grouped;
+  }, [categories, programs]);
 
   // Memoized functions to prevent recreation
   const fetchProgramsForCategory = useCallback(async (categoryId: string, categoryName: string) => {
-    if (!isMountedRef.current || categoryPrograms[categoryName]) {
+    if (!isMountedRef.current) {
       return;
     }
     
     try {
-      const filteredPrograms = programs.filter((program) => program.category === categoryId);
+      // Use the grouped programs instead of fetching
+      const categoryPrograms = groupProgramsByCategory[categoryName] || [];
       
       if (isMountedRef.current) {
         setCategoryPrograms(prev => ({
           ...prev,
-          [categoryName]: filteredPrograms
+          [categoryName]: categoryPrograms
         }));
       }
     } catch (error) {
@@ -177,7 +191,7 @@ const Sidebar = ({
         }));
       }
     }
-  }, [programs, categoryPrograms]);
+  }, [groupProgramsByCategory]);
 
   const toggleCategory = useCallback(async (categoryName: string) => {
     if (!isMountedRef.current || !Array.isArray(expandedCategories)) return;
@@ -199,19 +213,29 @@ const Sidebar = ({
     }
   }, [expandedCategories, categories, fetchProgramsForCategory]);
 
+  // FIXED: Improved search functionality
   const handleSearch = useCallback((query: string) => {
     if (!isMountedRef.current) return;
     
     setSearchQuery(query);
 
     if (query.trim()) {
+      // Find programs that match the search query
       const matchingPrograms = programs.filter((program) =>
         program.name && program.name.toLowerCase().includes(query.toLowerCase())
       );
-      const matchingCategoryNames = Array.from(
+      
+      // Get categories that contain matching programs
+      const matchingCategoryIds = Array.from(
         new Set(matchingPrograms.map((p) => p.category).filter(Boolean))
       );
+      
+      // Find category names from category IDs
+      const matchingCategoryNames = categories
+        .filter(cat => matchingCategoryIds.includes(cat._id))
+        .map(cat => cat.name);
 
+      // Auto-expand categories with matching programs
       matchingCategoryNames.forEach((categoryName) => {
         if (Array.isArray(expandedCategories) && !expandedCategories.includes(categoryName)) {
           toggleCategory(categoryName);
@@ -222,7 +246,7 @@ const Sidebar = ({
     } else {
       setProgramNotFound(false);
     }
-  }, [programs, expandedCategories, toggleCategory]);
+  }, [programs, categories, expandedCategories, toggleCategory]);
 
   const handlePostJobClick = useCallback(() => {
     if (!isMountedRef.current) return;
@@ -246,20 +270,33 @@ const Sidebar = ({
     router.push(path);
   }, [onCloseSidebar, router]);
 
-  // Memoized filtered categories
+  // FIXED: Improved filtered categories with search functionality
   const filteredCategories = useMemo(() => {
     if (!searchQuery.trim()) {
       return categories;
     }
     
     return categories.filter(category => {
-      const matchingPrograms = programs.filter(program => 
-        program.category === category.name && 
+      const categoryPrograms = groupProgramsByCategory[category.name] || [];
+      const matchingPrograms = categoryPrograms.filter(program => 
         program.name && program.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
       return matchingPrograms.length > 0;
     });
-  }, [searchQuery, categories, programs]);
+  }, [searchQuery, categories, groupProgramsByCategory]);
+
+  // FIXED: Filter programs within categories based on search
+  const getFilteredProgramsForCategory = useCallback((categoryName: string) => {
+    const categoryPrograms = groupProgramsByCategory[categoryName] || [];
+    
+    if (!searchQuery.trim()) {
+      return categoryPrograms;
+    }
+    
+    return categoryPrograms.filter(program => 
+      program.name && program.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [groupProgramsByCategory, searchQuery]);
 
   // Show full-screen PostJob component
   if (showPostJob && isMobile) {
@@ -367,85 +404,95 @@ const Sidebar = ({
         <p className={`my-2 text-center text-gray-500 ${!isMobile ? 'flex-shrink-0' : ''}`}>No Result found</p>
       )}
 
-      {/* Categories Section */}
-      <div className={`${!isMobile ? 'flex-1 overflow-y-auto px-4 hide-scrollbar' : ''}`}>
-        {!isMobile ? (
-          <div className="py-2">
-            {filteredCategories.map((category) => {
-              const isExpanded = Array.isArray(expandedCategories) && expandedCategories.includes(category.name);
-              const categoryProgramsList = categoryPrograms[category.name] || [];
+      {/* Categories Section - IMPROVED: Better sizing like the reference site */}
+      <div className={`${!isMobile ? 'flex-1 min-h-0 flex flex-col' : ''}`}>
+        <div className={`${!isMobile ? 'flex-1 overflow-y-auto px-4 hide-scrollbar' : ''}`}>
+          {!isMobile ? (
+            <div className="py-2">
+              {filteredCategories.map((category) => {
+                const isExpanded = Array.isArray(expandedCategories) && expandedCategories.includes(category.name);
+                const categoryProgramsList = getFilteredProgramsForCategory(category.name);
 
-              return (
-                <div key={category.id || category._id} className="mb-1">
-                  {/* Category Header */}
-                  <button
-                    onClick={() => toggleCategory(category.name)}
-                    className="w-full flex items-center justify-between py-2 px-2 hover:bg-gray-50 rounded transition-colors"
-                  >
-                    <span className="text-md font-medium text-gray-700 font-bold">
-                      {category.name}
-                    </span>
-                    {isExpanded ? (
-                      <ChevronDown className="w-3 h-3 text-gray-400" />
-                    ) : (
-                      <ChevronRight className="w-3 h-3 text-gray-400" />
-                    )}
-                  </button>
-
-                  {/* Programs Dropdown */}
-                  {isExpanded && (
-                    <div className="ml-3 space-y-1 max-h-32 overflow-y-auto hide-scrollbar">
-                      {categoryProgramsList.length > 0 ? (
-                        categoryProgramsList.map((program) => (
-                          <button
-                            key={program._id || program.id}
-                            onClick={() => onSelectProgram(program)}
-                            className="w-full text-left py-1 px-2 hover:bg-blue-50 rounded text-sm text-gray-600 hover:text-blue-600 transition-colors"
-                          >
-                            {program.name || 'Untitled'}
-                          </button>
-                        ))
+                return (
+                  <div key={category.id || category._id} className="mb-1">
+                    {/* Category Header */}
+                    <button
+                      onClick={() => toggleCategory(category.name)}
+                      className="w-full flex items-center justify-between py-2 px-2 hover:bg-gray-50 rounded transition-colors"
+                    >
+                      <span className="text-md font-medium text-gray-700 font-bold">
+                        {category.name}
+                      </span>
+                      {isExpanded ? (
+                        <ChevronDown className="w-3 h-3 text-gray-400" />
                       ) : (
-                        <div className="py-1 px-2 text-xs text-gray-400">No programs</div>
+                        <ChevronRight className="w-3 h-3 text-gray-400" />
                       )}
-                    </div>
-                  )}
+                    </button>
+
+                    {/* Programs Dropdown - IMPROVED: Better sizing and layout with moderate height increase */}
+                    {isExpanded && (
+                      <div className="ml-3 space-y-1 max-h-60 overflow-y-auto hide-scrollbar border-l border-gray-100 pl-2">
+                        {categoryProgramsList.length > 0 ? (
+                          categoryProgramsList.map((program) => (
+                            <button
+                              key={program._id || program.id}
+                              onClick={() => onSelectProgram(program)}
+                              className="w-full text-left py-2 px-3 hover:bg-blue-50 rounded text-sm text-gray-600 hover:text-blue-600 transition-colors border-b border-gray-50 last:border-b-0"
+                              title={program.name || 'Untitled'}
+                            >
+                              <div className="truncate">
+                                {program.name || 'Untitled'}
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="py-2 px-3 text-xs text-gray-400">No programs found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <Category
+              expandedCategories={Array.isArray(expandedCategories) ? expandedCategories : []}
+              toggleCategory={toggleCategory}
+              onSelectProgram={onSelectProgram}
+              searchQuery={searchQuery}
+              setProgramNotFound={setProgramNotFound}
+            />
+          )}
+        </div>
+
+        {/* Bottom section moved inside categories container to utilize remaining space */}
+        {!isMobile && (
+          <div className="flex-shrink-0 px-4">
+            <div className="flex justify-center py-2">
+              <button
+                onClick={() => handleNavigation("/categories")}
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 text-[#0284DA] bg-white hover:text-[#0284FF] hover:bg-blue-50 transition-colors"
+              >
+                View All Programs
+              </button>
+            </div>
+            <div className="border-t border-gray-200 pt-2 flex flex-col gap-y-2 pb-4">
+              <div className="flex-shrink-0">
+                <DailyQuiz router={router} />
+              </div>
+              {settings?.isJobs && settings?.isPostJob && (
+                <div className="flex-shrink-0">
+                  <Articles 
+                    onShowJobPosting={onShowJobPosting} 
+                    onShowApplyJob={onShowApplyJob} 
+                  />
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
-        ) : (
-          <Category
-            expandedCategories={Array.isArray(expandedCategories) ? expandedCategories : []}
-            toggleCategory={toggleCategory}
-            onSelectProgram={onSelectProgram}
-            searchQuery={searchQuery}
-            setProgramNotFound={setProgramNotFound}
-          />
         )}
       </div>
-
-      {!isMobile && (
-        <div className="flex-shrink-0">
-          <div className="flex justify-center py-2">
-            <button
-              onClick={() => handleNavigation("/categories")}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 text-[#0284DA] bg-white hover:text-[#0284FF] hover:bg-blue-50 transition-colors"
-            >
-              View All Programs
-            </button>
-          </div>
-          <div className="border-t border-gray-200 px-4 pt-2 flex flex-col gap-y-[11px] pb-4">
-            <DailyQuiz router={router} />
-            {settings?.isJobs && settings?.isPostJob && (
-              <Articles 
-                onShowJobPosting={onShowJobPosting} 
-                onShowApplyJob={onShowApplyJob} 
-              />
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
