@@ -32,33 +32,10 @@ export default function Home() {
   const [isClient, setIsClient] = useState(false);
 
   // Ensure client-side rendering
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
+
 
   // Add targeted CSS override for code cards only
-  useEffect(() => {
-    if (!isClient) return;
-    
-    const style = document.createElement("style");
-    style.textContent = `
-      .code-cards-container * {
-        color: #000000 !important;
-      }
-      .code-cards-container pre,
-      .code-cards-container code,
-      .code-cards-container p,
-      .code-cards-container div,
-      .code-cards-container span {
-        color: #000000 !important;
-      }
-    `;
-    document.head.appendChild(style);
-
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, [isClient]);
+  ;
 
   const dispatch = useAppDispatch();
   const [copied, setCopied] = useState(false);

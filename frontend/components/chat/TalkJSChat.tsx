@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { chatAPI, ChatSession } from '@/lib/api';
-import { createTalkJSConversation, getChatboxOptions } from '@/lib/talkjs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -42,26 +41,31 @@ export default function TalkJSChat({ sessionId, onSessionChange }: TalkJSChatPro
       try {
         // Check if TalkJS is already loaded
         if (typeof window !== 'undefined' && (window as any).Talk) {
+          console.log('TalkJS already loaded');
           setTalkjsLoaded(true);
           return;
         }
 
+        console.log('Loading TalkJS SDK...');
+        
         // Load TalkJS SDK
         const script = document.createElement('script');
         script.src = 'https://cdn.talkjs.com/talk.js';
         script.async = true;
         
         script.onload = () => {
+          console.log('TalkJS SDK loaded successfully');
           setTalkjsLoaded(true);
         };
         
-        script.onerror = () => {
+        script.onerror = (error) => {
+          console.error('Failed to load TalkJS SDK:', error);
           setError('Failed to load TalkJS SDK');
           setLoading(false);
         };
         
         document.head.appendChild(script);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error loading TalkJS:', error);
         setError('Failed to initialize chat');
         setLoading(false);
@@ -74,18 +78,21 @@ export default function TalkJSChat({ sessionId, onSessionChange }: TalkJSChatPro
   // Load chat session
   const loadChatSession = async (sessionId: string) => {
     try {
+      console.log('Loading chat session:', sessionId);
       setLoading(true);
       setError(null);
       
       const response = await chatAPI.getSession(sessionId);
       
       if (response.success && response.data && response.data.session) {
+        console.log('Chat session loaded:', response.data.session);
         setSession(response.data.session);
         onSessionChange?.(response.data.session);
       } else {
+        console.error('Failed to load session:', response);
         setError(response.error || 'Failed to load chat session');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading chat session:', error);
       setError('Failed to load chat session');
     } finally {
@@ -96,32 +103,58 @@ export default function TalkJSChat({ sessionId, onSessionChange }: TalkJSChatPro
   // Initialize TalkJS chat
   const initializeChat = async () => {
     if (!talkjsLoaded || !session || !user || !chatboxRef.current) {
+      console.log('Chat initialization skipped - missing dependencies:', {
+        talkjsLoaded,
+        hasSession: !!session,
+        hasUser: !!user,
+        hasRef: !!chatboxRef.current
+      });
       return;
     }
 
     try {
+      console.log('=== INITIALIZING TALKJS CHAT ===');
+      setLoading(true);
+      setError(null);
+
       const Talk = (window as any).Talk;
       
       if (!Talk) {
         throw new Error('TalkJS SDK not loaded');
       }
 
+      console.log('Getting TalkJS token from backend...');
+      
       // Get TalkJS token from backend
       const tokenResponse = await chatAPI.getTalkJSToken();
       
       if (!tokenResponse.success || !tokenResponse.data?.token) {
+        console.error('Token response:', tokenResponse);
         throw new Error('Failed to get TalkJS token');
       }
 
-      // Initialize TalkJS session
+      console.log('Token received, length:', tokenResponse.data.token.length);
+
+      // Wait for TalkJS to be ready
+      console.log('Waiting for TalkJS to be ready...');
       await Talk.ready;
+      console.log('TalkJS is ready');
       
       // Create Talk.User instance for the current user
       const me = new Talk.User({
         id: user.id,
         name: user.name,
-        email: user.email || null,
-        role: 'default'
+        email: user.email || '',
+        role: 'default',
+        photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          user.name
+        )}&background=0D8ABC&color=fff&size=128`
+      });
+
+      console.log('Creating TalkJS session with:', {
+        appId: process.env.NEXT_PUBLIC_TALKJS_APP_ID,
+        userId: user.id,
+        tokenExists: !!tokenResponse.data.token
       });
       
       const talkSession = new Talk.Session({
@@ -130,48 +163,90 @@ export default function TalkJSChat({ sessionId, onSessionChange }: TalkJSChatPro
         signature: tokenResponse.data.token
       });
 
+      console.log('TalkJS session created');
+
       // Create conversation
       if (!session.otherParticipant) {
         throw new Error('Other participant data is missing');
       }
       
-      // Create the conversation
+      console.log('Creating conversation:', session.talkjsConversationId);
+      console.log('Other participant:', session.otherParticipant);
+      
+      // Get or create the conversation
       const conversation = talkSession.getOrCreateConversation(session.talkjsConversationId);
       
-      // Add current user (already added as 'me' in session)
+      // Set conversation participants
       conversation.setParticipant(me);
       
       // Create and add other participant
       const otherUser = new Talk.User({
         id: session.otherParticipant.id,
         name: session.otherParticipant.name,
-        email: session.otherParticipant.email || null,
-        role: session.otherParticipant.userType || 'default'
+        
+        email: '', // Email is not available in otherParticipant type
+        role: 'default',
+        photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          session.otherParticipant.name
+        )}&background=0D8ABC&color=fff&size=128`
       });
       
       conversation.setParticipant(otherUser);
 
-      // Get chatbox options based on screen size
-      const options = getChatboxOptions();
+      console.log('Conversation participants set');
+
+      // Create chatbox with options
+      const options = {
+        showChatHeader: false, // We're using custom header
+        showOnlineStatus: true,
+        messageSizeLimit: 1024 * 1024 * 5, // 5MB
+        enableFileSharing: true
+      };
       
-      // Create and mount chatbox
+      console.log('Creating chatbox...');
       const newChatbox = talkSession.createChatbox(conversation, options);
+      
+      console.log('Mounting chatbox...');
       newChatbox.mount(chatboxRef.current);
       
       setChatbox(newChatbox);
       setLoading(false);
       
-    } catch (error) {
-      console.error('Error initializing TalkJS chat:', error);
-      setError('Failed to initialize chat interface');
+      console.log('TalkJS chat initialized successfully');
+      
+    } catch (error: any) {
+      console.error('=== TALKJS INITIALIZATION ERROR ===');
+      
+      console.error('Error details:', error);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      
+      setError(`Chat initialization failed: ${error?.message || 'Unknown error'}`);
       setLoading(false);
+      
+      toast({
+        title: 'Chat Error',
+        description: error?.message || 'Unknown error occurred',
+        variant: 'destructive',
+      });
     }
   };
 
   // Retry initialization
   const retryInitialization = async () => {
+    console.log('Retrying TalkJS initialization...');
     setRetrying(true);
     setError(null);
+    
+    // Clean up existing chatbox
+    if (chatbox) {
+      try {
+        chatbox.destroy();
+        setChatbox(null);
+      } catch (e: any) {
+        console.log('Error destroying previous chatbox:', e);
+      }
+    }
     
     if (sessionId) {
       await loadChatSession(sessionId);
@@ -193,6 +268,7 @@ export default function TalkJSChat({ sessionId, onSessionChange }: TalkJSChatPro
   // Initialize chat when dependencies are ready
   useEffect(() => {
     if (talkjsLoaded && session && user) {
+      console.log('All dependencies ready, initializing chat...');
       initializeChat();
     }
   }, [talkjsLoaded, session, user]);
@@ -202,8 +278,9 @@ export default function TalkJSChat({ sessionId, onSessionChange }: TalkJSChatPro
     return () => {
       if (chatbox) {
         try {
+          console.log('Cleaning up chatbox on unmount');
           chatbox.destroy();
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error destroying chatbox:', error);
         }
       }
@@ -273,7 +350,7 @@ export default function TalkJSChat({ sessionId, onSessionChange }: TalkJSChatPro
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
               <p className="text-sm text-gray-600">
-                {retrying ? 'Retrying...' : 'Loading chat...'}
+                {retrying ? 'Retrying...' : 'Initializing chat...'}
               </p>
             </div>
           </div>
@@ -359,7 +436,7 @@ export default function TalkJSChat({ sessionId, onSessionChange }: TalkJSChatPro
         {/* TalkJS Chat Container */}
         <div 
           ref={chatboxRef} 
-          className="h-full"
+          className="h-full w-full"
           style={{ 
             minHeight: session ? 'calc(100% - 73px)' : '100%',
             height: session ? 'calc(100% - 73px)' : '100%'

@@ -7,7 +7,11 @@ const TALKJS_CONFIG = {
   secretKey: process.env.TALKJS_SECRET_KEY,
   apiUrl: 'https://api.talkjs.com/v1'
 };
-
+console.log('=== TALKJS CONFIG CHECK ===');
+console.log('TALKJS_APP_ID:', process.env.TALKJS_APP_ID);
+console.log('TALKJS_SECRET_KEY exists:', !!process.env.TALKJS_SECRET_KEY);
+console.log('TALKJS_SECRET_KEY length:', process.env.TALKJS_SECRET_KEY?.length);
+console.log('TALKJS_SECRET_KEY starts with:', process.env.TALKJS_SECRET_KEY?.substring(0, 8));
 // Validate TalkJS configuration
 if (!TALKJS_CONFIG.appId || !TALKJS_CONFIG.secretKey) {
   console.error('TalkJS configuration missing. Please set TALKJS_APP_ID and TALKJS_SECRET_KEY environment variables.');
@@ -100,24 +104,28 @@ const createTalkJSConversation = async (conversationId, participants, options = 
 
 /**
  * Generate a TalkJS session token for user authentication
- * @param {string} userId - User ID
- * @param {number} expiresIn - Token expiration time in seconds (default: 1 hour)
- * @returns {string} JWT token for TalkJS authentication
+ * FIXED VERSION - Uses correct TalkJS JWT format
  */
 const generateTalkJSToken = (userId, expiresIn = 3600) => {
   try {
-    // Ensure userId is a string
+    console.log('=== TALKJS TOKEN GENERATION ===');
+    console.log('User ID:', userId);
+    console.log('App ID:', TALKJS_CONFIG.appId);
+    console.log('Secret Key exists:', !!TALKJS_CONFIG.secretKey);
+    
     const userIdStr = (userId || '').toString();
     
     if (!userIdStr) {
-      throw new Error('User ID is required for token generation');
+      throw new Error('User ID is required');
     }
-    
-    const header = {
-      typ: 'JWT',
-      alg: 'HS256'
-    };
 
+    if (!TALKJS_CONFIG.appId || !TALKJS_CONFIG.secretKey) {
+      throw new Error('TalkJS configuration incomplete');
+    }
+
+    // Use jsonwebtoken library for proper JWT generation
+    const jwt = require('jsonwebtoken');
+    
     const payload = {
       appId: TALKJS_CONFIG.appId,
       userId: userIdStr,
@@ -125,26 +133,35 @@ const generateTalkJSToken = (userId, expiresIn = 3600) => {
       exp: Math.floor(Date.now() / 1000) + expiresIn
     };
 
-    // Create JWT token
-    const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
-    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    
-    const signature = crypto
-      .createHmac('sha256', TALKJS_CONFIG.secretKey)
-      .update(`${encodedHeader}.${encodedPayload}`)
-      .digest('base64url');
+    console.log('JWT Payload:', JSON.stringify(payload, null, 2));
 
-    const token = `${encodedHeader}.${encodedPayload}.${signature}`;
+    const token = jwt.sign(payload, TALKJS_CONFIG.secretKey, {
+      algorithm: 'HS256',
+      header: {
+        typ: 'JWT',
+        alg: 'HS256'
+      }
+    });
+
+    console.log('Token generated successfully');
+    console.log('Token length:', token.length);
     
-    console.log(`TalkJS token generated for user: ${userIdStr}`);
+    // Verify the token was created correctly
+    try {
+      const decoded = jwt.verify(token, TALKJS_CONFIG.secretKey);
+      console.log('Token verification successful:', decoded);
+    } catch (verifyError) {
+      console.error('Token verification failed:', verifyError.message);
+      throw new Error('Generated token is invalid');
+    }
+
     return token;
 
   } catch (error) {
-    console.error('Error generating TalkJS token:', error.message);
-    throw new Error('Failed to generate TalkJS token');
+    console.error('Token generation error:', error.message);
+    throw new Error(`Failed to generate TalkJS token: ${error.message}`);
   }
 };
-
 /**
  * Add a user to an existing conversation
  * @param {string} conversationId - Conversation ID

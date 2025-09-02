@@ -4,6 +4,7 @@ const User = require('../models/userModel');
 const { createTalkJSUser, createTalkJSConversation, generateTalkJSToken } = require('../utils/talkjsService');
 const { body, validationResult, param, query } = require('express-validator');
 
+
 // Validation rules
 const createSessionValidation = [
   body('inviteId')
@@ -330,6 +331,13 @@ const getUserChatSessions = async (req, res) => {
 // Generate TalkJS session token for authenticated user
 const getTalkJSToken = async (req, res) => {
   try {
+    console.log('=== GENERATING TALKJS TOKEN ===');
+    console.log('User:', req.user);
+    console.log('Environment check:', {
+      appId: process.env.TALKJS_APP_ID,
+      hasSecretKey: !!process.env.TALKJS_SECRET_KEY
+    });
+
     const user = req.user;
 
     // Ensure user exists in TalkJS
@@ -337,6 +345,8 @@ const getTalkJSToken = async (req, res) => {
 
     // Generate session token
     const token = generateTalkJSToken(user.id);
+    
+    console.log('Token generated successfully');
 
     res.status(200).json({
       success: true,
@@ -355,11 +365,11 @@ const getTalkJSToken = async (req, res) => {
     console.error('Get TalkJS token error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to generate chat token'
+      error: 'Failed to generate chat token',
+      details: error.message
     });
   }
 };
-
 // Update chat session activity (called by TalkJS webhook)
 const updateChatActivity = async (req, res) => {
   try {
