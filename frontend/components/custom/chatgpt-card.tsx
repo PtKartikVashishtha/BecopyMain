@@ -143,7 +143,7 @@ const ChatGPTCard = ({ language, clickFunc, showDialog }: ChatGPTCardProps) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-white bg-[#16a34a] hover:bg-[#15803d] hover:text-white outline-none"
+                  className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none"
                   onClick={() => setAskGPTOpen(true)}
                 >
                   <MessageCircle className="h-4 w-4 mr-1" />

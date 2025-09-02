@@ -8,7 +8,6 @@ import { fetchDashboardString } from "@/store/reducers/dashStringSlice";
 import { Program } from "@/types";
 import { copyProgram, fetchPrograms, viewProgram } from "@/store/reducers/programSlice";
 import { useAuth } from "@/hooks/useAuth";
-import { useMediaQuery } from "react-responsive";
 import { fetchSettings } from "@/store/reducers/settingSlice";
 import { useSearchParams } from "next/navigation";
 import { HELLO_DEVELOPER } from "@/constants";
@@ -67,6 +66,7 @@ export default function Home() {
   const isMountedRef = useRef(false);
   const [isClient, setIsClient] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
 
   // Initialize all state with proper defaults
   const [copied, setCopied] = useState(false);
@@ -97,11 +97,33 @@ export default function Home() {
     };
   }, []);
 
+  // FIXED: Replace useMediaQuery with manual media query handling
+  useEffect(() => {
+    if (!isClient) return;
+
+    // Function to check if screen is mobile
+    const checkIsMobile = () => {
+      if (typeof window !== 'undefined') {
+        setIsMobile(window.innerWidth <= 639);
+      }
+    };
+
+    // Initial check
+    checkIsMobile();
+
+    // Add resize listener
+    const handleResize = () => {
+      checkIsMobile();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isClient]);
+
   const dispatch = useAppDispatch();
-  
-  // Safe media query hook
-  const rawIsMobile = useMediaQuery({ maxWidth: 639 }, undefined, { deviceWidth: 640 });
-  const isMobile = isClient ? rawIsMobile : false;
 
   const searchParams = useSearchParams();
   const programId = searchParams?.get("programId") || null;
@@ -368,7 +390,7 @@ export default function Home() {
                   hasButtons={selectedProgram.name !== ""}
                   bgColor={settings?.item?.javaBackgroundColor}
                   footerBgColor={settings?.item?.javaFooterBackgroundColor}
-                  fontSize={settings?.item?.javaFontSize}
+                  fontSize={settings?.item?.javaFontSize || settings?.item?.pythonFontSize || "14px"}
                 />
               )}
 
@@ -398,7 +420,7 @@ export default function Home() {
                   hasButtons={selectedProgram.name !== ""}
                   bgColor={settings?.item?.pythonBackgroundColor}
                   footerBgColor={settings?.item?.pythonFooterBackgroundColor}
-                  fontSize={settings?.item?.pythonFontSize}
+                  fontSize={settings?.item?.pythonFontSize || "14px"}
                 />
               )}
 
@@ -428,7 +450,7 @@ export default function Home() {
                   hasButtons={selectedProgram.name !== ""}
                   bgColor={settings?.item?.htmlBackgroundColor}
                   footerBgColor={settings?.item?.htmlFooterBackgroundColor}
-                  fontSize={settings?.item?.htmlFontSize}
+                  fontSize={settings?.item?.htmlFontSize || "14px"}
                 />
               )}
             </div>

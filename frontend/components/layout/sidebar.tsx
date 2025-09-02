@@ -67,6 +67,42 @@ const Sidebar = ({
     };
   }, []);
 
+  // Add CSS for hiding scrollbars
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "sidebar-scrollbar-style";
+    style.textContent = `
+      /* Hide scrollbar for webkit browsers (Chrome, Safari, Edge) */
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      
+      /* Hide scrollbar for IE, Edge and Firefox */
+      .hide-scrollbar {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+      }
+      
+      /* Ensure scrolling still works */
+      .hide-scrollbar {
+        overflow: auto;
+      }
+    `;
+    
+    // Check if style already exists
+    const existingStyle = document.getElementById("sidebar-scrollbar-style");
+    if (!existingStyle) {
+      document.head.appendChild(style);
+    }
+
+    return () => {
+      const styleToRemove = document.getElementById("sidebar-scrollbar-style");
+      if (styleToRemove && document.head.contains(styleToRemove)) {
+        document.head.removeChild(styleToRemove);
+      }
+    };
+  }, []);
+
   // Redux state with safe defaults
   const categoriesState = useAppSelector((state) => state.categories) || { items: [] };
   const programsState = useAppSelector((state) => state.programs) || { items: [] };
@@ -242,7 +278,7 @@ const Sidebar = ({
   return (
     <div
       className={`
-        fixed inset-y-0 left-0 
+        fixed inset-y-0 left-0 hide-scrollbar
         ${isMobile ? 'overflow-y-auto' : 'overflow-hidden'}
         w-64 bg-white border-r border-gray-200
         transform transition-transform duration-300 z-30 ease-in-out
@@ -332,7 +368,7 @@ const Sidebar = ({
       )}
 
       {/* Categories Section */}
-      <div className={`${!isMobile ? 'flex-1 overflow-y-auto px-4' : ''}`}>
+      <div className={`${!isMobile ? 'flex-1 overflow-y-auto px-4 hide-scrollbar' : ''}`}>
         {!isMobile ? (
           <div className="py-2">
             {filteredCategories.map((category) => {
@@ -358,7 +394,7 @@ const Sidebar = ({
 
                   {/* Programs Dropdown */}
                   {isExpanded && (
-                    <div className="ml-3 space-y-1 max-h-32 overflow-y-auto">
+                    <div className="ml-3 space-y-1 max-h-32 overflow-y-auto hide-scrollbar">
                       {categoryProgramsList.length > 0 ? (
                         categoryProgramsList.map((program) => (
                           <button

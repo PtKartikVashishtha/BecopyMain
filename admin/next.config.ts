@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // This makes all your routes start with /admin
-  //basePath: "/admin",
+  basePath: "/admin",
   
   // This makes all your static assets load from /admin
   assetPrefix: "/admin",
