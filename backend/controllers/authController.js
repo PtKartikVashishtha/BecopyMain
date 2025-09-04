@@ -5,6 +5,7 @@ const Contribution = require('../models/contributionModel');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const transporter = require('../utils/sendMailer')
+const crypto = require('crypto')
 
 function validateLinkedInUrl(url) {
   const regex =
@@ -118,7 +119,6 @@ exports.getMe = async (req, res) => {
 // New method to get user profile with additional details
 exports.getProfile = async (req, res) => {
   try {
-    console.log(req.user)
     const user = await User.findById(req.user.id).select('-password -forgotPassCode -verificationToken');
     
     if (!user) {
@@ -684,5 +684,212 @@ exports.verifyEmail = async (req, res) => {
     return res.status(400).json({ message: 'Invalid Token' });
   } catch (error) {
     res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Generate OTP
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// OAuth login/register
+exports.oauthAuth = async (req, res) => {
+  try {
+    const { email, name, provider, providerId, userType, country } = req.body;
+
+    if (!email || !name || !provider || !providerId || !userType || !country) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    // Check if user exists
+    let user = await User.findOne({ 
+      $or: [
+        { email },
+        { provider, providerId }
+      ]
+    });
+
+    if (!user) {
+      // Create new user
+      user = await User.create({
+        name,
+        email,
+        provider,
+        providerId,
+        userType,
+        country,
+        isEmailVerified: true // OAuth emails are pre-verified
+      });
+
+      // Create corresponding profile
+      if (userType === 'recruiter') {
+        await Recruiter.create({
+          userId: user._id,
+          name,
+          email,
+          country,
+          companyName: "Update your Company Name",
+          companyWebSite: "https://mycompany.com",
+          description: "Description",
+          phoneNumber: "Update your Phone Number",
+          profileLink: "https://recruiter.profile.com"
+        });
+      } else {
+        await Contributor.create({
+          userId: user._id,
+          name,
+          email,
+          country,
+          profileLink: "https://contributor.me"
+        });
+      }
+    }
+
+    // Generate and send OTP
+    const otpCode = generateOTP();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await User.findByIdAndUpdate(user._id, {
+      otpCode,
+      otpExpiry,
+      isOtpVerified: false,
+      isEmailVerified: true // OAuth emails are pre-verified
+    });
+
+    // Send OTP email
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Login OTP - Becopy',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #0284DA;">Login Verification</h2>
+          <p>Hello ${name},</p>
+          <p>Your OTP code for login is:</p>
+          <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
+            <h1 style="color: #0284DA; font-size: 32px; margin: 0;">${otpCode}</h1>
+          </div>
+          <p>This code will expire in 10 minutes.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP sent to your email',
+      userId: user._id,
+      email: user.email
+    });
+
+  } catch (error) {
+    console.error('OAuth auth error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+// Verify OTP and complete login
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { userId, otpCode } = req.body;
+
+    if (!userId || !otpCode) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID and OTP code are required'
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    // Check if OTP is valid and not expired
+    if (user.otpCode !== otpCode || new Date() > user.otpExpiry) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired OTP'
+      });
+    }
+
+    // Mark OTP as verified, set email as verified, and clear OTP fields
+    await User.findByIdAndUpdate(userId, {
+      isOtpVerified: true,
+      isEmailVerified: true,
+      otpCode: null,
+      otpExpiry: null
+    });
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.userType },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    // Get saved contributions for users
+    let savedContributions = [];
+    if (user.userType === "user") {
+      const contributorWithContributions = await Contributor.aggregate([
+        { $match: { userId: user._id } },
+        {
+          $lookup: {
+            from: 'contributions',
+            localField: 'contributions',
+            foreignField: '_id',
+            as: 'contributionDetails'
+          }
+        },
+        { $unwind: '$contributionDetails' },
+        {
+          $match: {
+            'contributionDetails.status': 'saved'
+          }
+        },
+        {
+          $group: {
+            _id: '$_id',
+            savedContributions: { $push: '$contributionDetails' }
+          }
+        }
+      ]);
+
+      if (contributorWithContributions.length > 0) {
+        savedContributions = contributorWithContributions[0].savedContributions;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.userType,
+        country: user.country,
+        isEmailVerified: true // Email is verified after successful OTP
+      },
+      savedContributions
+    });
+
+  } catch (error) {
+    console.error('OTP verification error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
   }
 };

@@ -7,7 +7,7 @@ import { fetchCategories } from "@/store/reducers/categorySlice";
 import { fetchDashboardString } from "@/store/reducers/dashStringSlice";
 import { Program } from "@/types";
 import { copyProgram, fetchPrograms, viewProgram } from "@/store/reducers/programSlice";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { fetchSettings } from "@/store/reducers/settingSlice";
 import { useSearchParams } from "next/navigation";
 import { HELLO_DEVELOPER } from "@/constants";

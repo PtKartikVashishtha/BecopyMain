@@ -13,7 +13,7 @@ import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { fetchCategories } from "@/store/reducers/categorySlice";
 import { fetchPrograms } from "@/store/reducers/programSlice";
 import { fetchContributors } from "@/store/reducers/contributorSlice";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { useMediaQuery } from "react-responsive";
 import Sidebar from "@/components/layout/sidebar";
 

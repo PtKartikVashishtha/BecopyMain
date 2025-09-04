@@ -57,7 +57,7 @@ export default function VerifyEmail() {
       try {
         const data = await authService.verifyEmail({ email, token });
         if (data?.data?.isEmailVerified) {
-          router.push("/userauth");
+          router.push("/login");
         }
       } catch (error) {
         console.error("Email verification failed:", error);
@@ -229,7 +229,7 @@ export default function VerifyEmail() {
               <Button
                 type="button"
                 variant="link"
-                onClick={() => router.push("/userauth")}
+                onClick={() => router.push("/login")}
                 className="text-blue-500 hover:text-blue-600 text-sm p-0 h-auto"
               >
                 Back to Login
