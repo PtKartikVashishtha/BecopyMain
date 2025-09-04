@@ -1,6 +1,8 @@
 import {
   Check, Dot, Menu, LogOut, UserRound, Search, User, Globe, MapPin, 
-  Wifi, RotateCcw, AlertCircle
+  Wifi, RotateCcw, AlertCircle,
+  LucideMessageCircleQuestion,
+  FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -104,6 +106,14 @@ const Header = ({ isSidebarOpen, toggleSidebar, setSelectedProgram }: HeaderProp
     router.push("/profile");
   };
 
+  const handleFAQ = () => {
+    router.push("/faq");
+  }
+
+  const handlePolicy = () => {
+    router.push("/policy");
+  }
+
   const getLocationDisplay = () => {
     if (geoLoading || isDetecting) return 'Detecting...';
     if (!userLocation) return 'Location Unknown';
@@ -172,7 +182,7 @@ const Header = ({ isSidebarOpen, toggleSidebar, setSelectedProgram }: HeaderProp
           Quiz
         </p>
         
-        <p onClick={() => router.push("/faq")}
+        {/* <p onClick={() => router.push("/faq")}
            className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer">
           FAQ
         </p>
@@ -180,7 +190,7 @@ const Header = ({ isSidebarOpen, toggleSidebar, setSelectedProgram }: HeaderProp
         <p onClick={() => router.push("/policy")}
            className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer">
           Policy
-        </p>
+        </p> */}
         
         <p onClick={() => router.push("/contact")}
            className="text-[#7AD2F4] font-medium text-sm transition duration-300 ease-in-out hover:bg-blue-300 p-2 rounded-md hover:text-white md:text-base cursor-pointer">
@@ -324,6 +334,21 @@ const Header = ({ isSidebarOpen, toggleSidebar, setSelectedProgram }: HeaderProp
                     )}
                   </div>
                 </div>
+                <Button
+                  onClick={handlePolicy}
+                  className="w-full h-full bg-transparent text-black hover:bg-gray-100 justify-start rounded-none"
+                >
+                 <FileText className="h-4 w-4 mr-4" />
+                  Policy
+                </Button>
+
+                <Button
+                  onClick={handleFAQ}
+                  className="w-full h-full bg-transparent text-black hover:bg-gray-100 justify-start rounded-none"
+                >
+                  <LucideMessageCircleQuestion className="h-4 w-4 mr-4" />
+                  FAQ
+                </Button>
                 
                 <Button
                   onClick={logout}
