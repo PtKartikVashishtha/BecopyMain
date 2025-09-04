@@ -436,7 +436,6 @@ const Sidebar = ({
                         {categoryProgramsList.length > 0 ? (
                           categoryProgramsList.map((program) => (
                             <button
-                              key={program._id || program.id}
                               onClick={() => onSelectProgram(program)}
                               className="w-full text-left py-2 px-3 hover:bg-blue-50 rounded text-sm text-gray-600 hover:text-blue-600 transition-colors border-b border-gray-50 last:border-b-0"
                               title={program.name || 'Untitled'}

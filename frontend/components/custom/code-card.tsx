@@ -76,7 +76,7 @@ const MobileCodeViewer = ({
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 truncate max-w-[200px]">{title}</h2>
+            <h2 className="text-lg font-semibold text-gray-600 truncate max-w-[200px]">{title}</h2>
             <span className="text-sm text-gray-500 capitalize">{language}</span>
           </div>
         </div>
@@ -95,10 +95,10 @@ const MobileCodeViewer = ({
           <ScrollArea className="h-full w-full">
             <div
               dangerouslySetInnerHTML={{ __html: highlightedCode }}
-              className="shiki text-sm"
+              className="shiki text-sm [&_*]:!text-white"
               style={{ 
-                backgroundColor: "white",
-                color: "#333333"
+                backgroundColor: "#1f1f24",
+                color: "white"
               }}
             />
           </ScrollArea>
@@ -207,19 +207,19 @@ const MobileFeedbackPage = ({
 
           {/* Code Display */}
           <div className="p-4 bg-white">
-            <div className="bg-white rounded-lg border border-gray-200 mb-4">
+            <div className="bg-[#1f1f24] rounded-lg border border-gray-200 mb-4">
               <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
                 <span className="text-sm font-medium text-gray-700 capitalize">
                   {activeLanguage} Code
                 </span>
               </div>
-              <ScrollArea className="h-48 p-3 bg-white">
+              <ScrollArea className="h-48 p-3 bg-[#1f1f24] scrollbar-hide">
                 <div
                   dangerouslySetInnerHTML={{ __html: currentLangData.highlighted }}
-                  className="shiki text-sm"
+                  className="shiki text-sm [&_*]:!text-white"
                   style={{ 
-                    backgroundColor: "white",
-                    color: "#333333"
+                    backgroundColor: "#1f1f24",
+                    color: "white"
                   }}
                 />
               </ScrollArea>
@@ -519,14 +519,14 @@ const CodeCard = ({
   useEffect(() => {
     const highlight = async () => {
       const highlighter = await shiki.createHighlighter({
-        themes: ["light-plus"],
+        themes: ["github-dark"],
         langs: ["javascript", "python", "java", "html"],
       });
 
-      // Always use light theme with white background
+      // Use dark theme for better white text visibility
       const highlighted = highlighter.codeToHtml(formatCode(code), {
         lang: language,
-        theme: "light-plus",
+        theme: "github-dark",
       });
       setHighlightedCode(highlighted);
 
@@ -534,15 +534,15 @@ const CodeCard = ({
       const allHighlighted = {
         java: highlighter.codeToHtml(formatCode(code), {
           lang: "java",
-          theme: "light-plus",
+          theme: "github-dark",
         }),
         python: highlighter.codeToHtml(formatCode(code), {
           lang: "python", 
-          theme: "light-plus",
+          theme: "github-dark",
         }),
         html: highlighter.codeToHtml(formatCode(code), {
           lang: "html",
-          theme: "light-plus",
+          theme: "github-dark",
         })
       };
       setAllHighlightedCode(allHighlighted);
@@ -561,15 +561,15 @@ const CodeCard = ({
 
   return (
     <>
-      <Card className="w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg bg-white">
+      <Card className="w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg bg-[#1f1f24]">
         {/* Fixed header with better spacing and margins */}
-        <CardHeader className="px-4 sm:px-6 py-2 border-b border-[#c8c8c8] bg-white">
+        <CardHeader className="px-4 sm:px-6 py-2 border-b border-[#c8c8c8]">
           <div className="flex flex-col sm:grid sm:grid-cols-12 w-full gap-4 sm:gap-6">
             {/* Mobile: Language and Stats Row */}
             <div className="flex justify-between items-center sm:contents">
               {/* Language with proper margin */}
               <div className="sm:col-span-3 flex items-center mr-4">
-                <span className="text-xs sm:text-sm font-medium text-gray-900">
+                <span className="text-xs sm:text-sm font-medium text-white">
                   {language.toString().slice(0, 1).toUpperCase() +
                     language.toString().slice(1)}
                 </span>
@@ -597,8 +597,8 @@ const CodeCard = ({
             </div>
 
             {/* Title Row with better spacing and margin from buttons */}
-            <div className="sm:col-span-6 flex justify-center sm:justify-center px-4 sm:pr-10 sm:pl-6">
-              <CardTitle className="text-gray-900 text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full mr-3">
+            <div className="sm:col-span-6 flex justify-center sm:justify-center px-4 sm:pr-10 sm:pl-6 text-white">
+              <CardTitle className="text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full mr-3">
                 {title}
               </CardTitle>
             </div>
@@ -612,7 +612,7 @@ const CodeCard = ({
                   <button className="w-3 h-3 rounded-full bg-[#27c93f]" />
                 </div>
               ) : (
-                <div className="flex space-x-4 text-gray-600 text-sm">
+                <div className="flex space-x-4 text-sm">
                   <div className="flex items-center space-x-1">
                     <Eye className="w-4 h-4" />
                     <span>{viewedNumber}</span>
@@ -632,10 +632,10 @@ const CodeCard = ({
         </CardHeader>
 
         {/* Mobile-optimized content */}
-        <CardContent className="p-1 sm:p-2 font-display bg-white">
+        <CardContent className="p-1 sm:p-2 font-display ">
           <ScrollArea
             ref={scrollAreaRef}
-            className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-auto bg-white"
+            className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-hidden scrollbar-hide"
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
           >
@@ -643,14 +643,14 @@ const CodeCard = ({
               dangerouslySetInnerHTML={{
                 __html: code.length === 0 ? defaultCode : highlightedCode,
               }}
-              className="shiki break-all sm:break-normal"
+              className="shiki break-all sm:break-normal [&_*]:!text-white"
               style={{ 
-                backgroundColor: "white", 
+                backgroundColor: "#1f1f24", 
                 fontSize: fontSize,
                 wordBreak: "break-all",
                 overflowWrap: "break-word",
                 whiteSpace: "pre-wrap",
-                color: "#333333",
+                color: "white",
                 padding: "0.5rem",
                 borderRadius: "0.375rem"
               }}
@@ -659,8 +659,8 @@ const CodeCard = ({
         </CardContent>
 
         {/* Fixed footer with better button spacing and corrected tooltip background */}
-        <CardFooter className="bg-white max-h-[40px] px-3 sm:px-4 py-3 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg">
-          {hasButtons && (
+        <CardFooter className="bg-[#202938] max-h-[40px] px-3 sm:px-4 py-3 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg rounded-t-lg">
+          {(
             <div className="flex space-x-6">
               <RadixTooltip.Provider>
                 <RadixTooltip.Root open={copied}>
@@ -677,7 +677,7 @@ const CodeCard = ({
                   <RadixTooltip.Content
                     side="top"
                     sideOffset={5}
-                    className="bg-white  px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50"
+                    className="bg-white px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50"
                   >
                     Code copied
                     <RadixTooltip.Arrow className="fill-gray-800" />
