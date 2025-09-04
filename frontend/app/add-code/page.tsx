@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useAppDispatch } from "@/store/hooks";
 import { savedContributions } from "@/store/reducers/contributionSlice";

@@ -18,11 +18,10 @@ import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import EditProfileModal from '@/components/editprofile';
+import { useAuth } from '@/context/AuthContext';
 
 // Fetch Profile API
-const fetchUserProfile = async () => {
-  const token = localStorage.getItem("token");
-
+const fetchUserProfile = async (token: string) => {
   const response = await api.get("/profile", {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -70,10 +69,12 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { user, isAuthenticated, loading: authLoading, token, updateUser } = useAuth();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (authLoading) return;
+    
+    if (!isAuthenticated || !user) {
       router.push('/login');
       return;
     }
@@ -81,7 +82,12 @@ const ProfilePage = () => {
     const loadProfile = async () => {
       try {
         setLoading(true);
-        const result = await fetchUserProfile();
+        if (!token) {
+          setError('No authentication token available');
+          setLoading(false);
+          return;
+        }
+        const result = await fetchUserProfile(token);
         
         console.log(result.data)
 
@@ -92,6 +98,16 @@ const ProfilePage = () => {
             user,
             additionalInfo: additionalInfo || null,
             contributions: contributions || [],
+          });
+          
+          // Update AuthContext with fresh user data from backend
+          updateUser({
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.userType,
+            country: user.country,
+            isEmailVerified: user.isEmailVerified
           });
         } else {
           setError('Failed to load profile');
@@ -105,7 +121,7 @@ const ProfilePage = () => {
     };
 
     loadProfile();
-  }, [router]);
+  }, [router, isAuthenticated, user, authLoading, token]);
 
   const handleProfileUpdate = (updatedUser: User) => {
     if (profileData) {

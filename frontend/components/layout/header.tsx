@@ -1,12 +1,15 @@
+'use client';
+
 import {
   Check, Dot, Menu, LogOut, UserRound, Search, User, Globe, MapPin, 
   Wifi, RotateCcw, AlertCircle,
   LucideMessageCircleQuestion,
   FileText
 } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { 
@@ -57,6 +60,19 @@ const Header = ({ isSidebarOpen, toggleSidebar, setSelectedProgram }: HeaderProp
   const programs = useAppSelector((state) => state.programs.items);
   const settings = useAppSelector((state) => state.settings.item);
   const { user, logout, isAuthenticated } = useAuth();
+  
+  const handleLogout = async () => {
+    try {
+      // Sign out from Next-Auth session first
+      await signOut({ redirect: false });
+      // Then call the traditional logout to clear localStorage and redirect
+      logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Fallback: still call logout to clear local state
+      logout();
+    }
+  };
 
   // Initialize settings and location on mount
   useEffect(() => {
@@ -351,7 +367,7 @@ const Header = ({ isSidebarOpen, toggleSidebar, setSelectedProgram }: HeaderProp
                 </Button>
                 
                 <Button
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="w-full h-full bg-transparent text-black hover:bg-gray-100 justify-start rounded-none"
                 >
                   <LogOut className="h-4 w-4 mr-4" />
