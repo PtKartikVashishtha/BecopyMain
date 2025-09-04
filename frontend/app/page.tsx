@@ -267,37 +267,37 @@ export default function Home() {
   }, []);
 
   // CSS injection with safety
-  useEffect(() => {
-    if (!isClient) return;
+  // useEffect(() => {
+  //   if (!isClient) return;
     
-    const style = document.createElement("style");
-    style.id = "code-cards-style";
-    style.textContent = `
-      .code-cards-container * {
-        color: #000000 !important;
-      }
-      .code-cards-container pre,
-      .code-cards-container code,
-      .code-cards-container p,
-      .code-cards-container div,
-      .code-cards-container span {
-        color: #000000 !important;
-      }
-    `;
+  //   const style = document.createElement("style");
+  //   style.id = "code-cards-style";
+  //   style.textContent = `
+  //     .code-cards-container * {
+  //       color: #000000 !important;
+  //     }
+  //     .code-cards-container pre,
+  //     .code-cards-container code,
+  //     .code-cards-container p,
+  //     .code-cards-container div,
+  //     .code-cards-container span {
+  //       color: #000000 !important;
+  //     }
+  //   `;
     
-    // Check if style already exists
-    const existingStyle = document.getElementById("code-cards-style");
-    if (!existingStyle) {
-      document.head.appendChild(style);
-    }
+  //   // Check if style already exists
+  //   const existingStyle = document.getElementById("code-cards-style");
+  //   if (!existingStyle) {
+  //     document.head.appendChild(style);
+  //   }
 
-    return () => {
-      const styleToRemove = document.getElementById("code-cards-style");
-      if (styleToRemove && document.head.contains(styleToRemove)) {
-        document.head.removeChild(styleToRemove);
-      }
-    };
-  }, [isClient]);
+  //   return () => {
+  //     const styleToRemove = document.getElementById("code-cards-style");
+  //     if (styleToRemove && document.head.contains(styleToRemove)) {
+  //       document.head.removeChild(styleToRemove);
+  //     }
+  //   };
+  // }, [isClient]);
 
   // Early returns for loading states
   if (!isClient) {
@@ -341,7 +341,7 @@ export default function Home() {
 
           <div className="flex-1 xl:ml-64 p-2 sm:p-4 xl:p-6">
             {/* Code Cards Grid */}
-            <div className="code-cards-container grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 mb-4">
+            <div className=" grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 mb-4">
               {/* Java Card */}
               {isClient && (
                 <CodeCard

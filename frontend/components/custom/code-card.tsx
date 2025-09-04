@@ -68,16 +68,16 @@ const MobileCodeViewer = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-white sm:hidden">
+    <div className="fixed inset-0 z-50  sm:hidden bg">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 ">
         <div className="flex items-center space-x-3">
           <button onClick={onClose} className="p-1">
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </button>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 truncate max-w-[200px]">{title}</h2>
-            <span className="text-sm text-gray-500 capitalize">{language}</span>
+            <span className="text-sm text-500 capitalize">{language}</span>
           </div>
         </div>
         <button
@@ -90,15 +90,15 @@ const MobileCodeViewer = ({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4 bg-white">
-        <div className="bg-white rounded-lg p-4 border border-gray-200">
+      <div className="flex-1 overflow-auto p-4 bg-gray-50">
+        <div className="bg-white rounded-lg p-4 shadow-sm">
           <ScrollArea className="h-full w-full">
             <div
               dangerouslySetInnerHTML={{ __html: highlightedCode }}
               className="shiki text-sm"
               style={{ 
-                backgroundColor: "white",
-                color: "#333333"
+                backgroundColor: "transparent",
+                
               }}
             />
           </ScrollArea>
@@ -171,7 +171,7 @@ const MobileFeedbackPage = ({
   return (
     <div className="fixed inset-0 z-50 bg-white sm:hidden overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 ">
         <div className="flex items-center space-x-3">
           <button onClick={onClose} className="p-1">
             <ArrowLeft className="w-5 h-5 text-gray-600" />
@@ -186,7 +186,7 @@ const MobileFeedbackPage = ({
       </div>
 
       {/* Content */}
-      <div className="flex flex-col h-full bg-white">
+      <div className="flex flex-col h-full ">
         <div className="flex-1 overflow-auto">
           {/* Language Tabs */}
           <div className="flex border-b border-gray-200 bg-gray-50 px-4">
@@ -197,7 +197,7 @@ const MobileFeedbackPage = ({
                 className={`px-4 py-3 text-sm font-medium capitalize border-b-2 ${
                   activeLanguage === lang
                     ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-700 hover:text-gray-900"
+                    : "border-transparent text-black hover:text-gray-700"
                 }`}
               >
                 {lang}
@@ -206,7 +206,7 @@ const MobileFeedbackPage = ({
           </div>
 
           {/* Code Display */}
-          <div className="p-4 bg-white">
+          <div className="p-4 bg-gray-50">
             <div className="bg-white rounded-lg border border-gray-200 mb-4">
               <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
                 <span className="text-sm font-medium text-gray-700 capitalize">
@@ -320,7 +320,7 @@ const MobileSharePage = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-white sm:hidden">
+    <div className="fixed inset-0 z-50  sm:hidden">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center space-x-3">
@@ -351,7 +351,7 @@ const MobileSharePage = ({
           {/* Copy Link */}
           <button
             onClick={handleCopyLink}
-            className="w-full flex items-center justify-center space-x-3 py-4 border border-gray-300 rounded-lg font-medium bg-white text-gray-700 hover:bg-gray-50"
+            className="w-full flex items-center justify-center space-x-3 py-4 border border-gray-300 rounded-lg font-medium"
           >
             {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
             <span>{copied ? 'Link Copied!' : 'Copy Link'}</span>
@@ -561,15 +561,15 @@ const CodeCard = ({
 
   return (
     <>
-      <Card className="w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg bg-white">
+      <Card className="w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg bg-[#1f1f2b]">
         {/* Fixed header with better spacing and margins */}
-        <CardHeader className="px-4 sm:px-6 py-2 border-b border-[#c8c8c8] bg-white">
+        <CardHeader className="px-4 sm:px-6 py-2 border-b border-[#c8c8c8]">
           <div className="flex flex-col sm:grid sm:grid-cols-12 w-full gap-4 sm:gap-6">
             {/* Mobile: Language and Stats Row */}
             <div className="flex justify-between items-center sm:contents">
               {/* Language with proper margin */}
               <div className="sm:col-span-3 flex items-center mr-4">
-                <span className="text-xs sm:text-sm font-medium text-gray-900">
+                <span className="text-xs sm:text-sm font-medium text-white">
                   {language.toString().slice(0, 1).toUpperCase() +
                     language.toString().slice(1)}
                 </span>
@@ -598,7 +598,7 @@ const CodeCard = ({
 
             {/* Title Row with better spacing and margin from buttons */}
             <div className="sm:col-span-6 flex justify-center sm:justify-center px-4 sm:pr-10 sm:pl-6">
-              <CardTitle className="text-gray-900 text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full mr-3">
+              <CardTitle className="text-white text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full mr-3">
                 {title}
               </CardTitle>
             </div>
@@ -632,10 +632,10 @@ const CodeCard = ({
         </CardHeader>
 
         {/* Mobile-optimized content */}
-        <CardContent className="p-1 sm:p-2 font-display bg-white">
+        <CardContent className="p-1 sm:p-2 font-display ">
           <ScrollArea
             ref={scrollAreaRef}
-            className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-auto bg-white"
+            className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-auto "
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
           >
@@ -659,7 +659,7 @@ const CodeCard = ({
         </CardContent>
 
         {/* Fixed footer with better button spacing and corrected tooltip background */}
-        <CardFooter className="bg-white max-h-[40px] px-3 sm:px-4 py-3 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg">
+        <CardFooter className=" min-h-[45px] px-3 sm:px-4 py-3 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg bg-[#202938]">
           {hasButtons && (
             <div className="flex space-x-6">
               <RadixTooltip.Provider>
@@ -677,7 +677,7 @@ const CodeCard = ({
                   <RadixTooltip.Content
                     side="top"
                     sideOffset={5}
-                    className="bg-white  px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50"
+                    className="  px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50"
                   >
                     Code copied
                     <RadixTooltip.Arrow className="fill-gray-800" />
