@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
-// const { protect } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 
 router.post('/login', authController.login);
 router.post('/register', authController.register);
@@ -10,8 +10,13 @@ router.post('/matchCode', authController.matchCode)
 router.post('/resetPass', authController.resetPass)
 router.post('/sendVerifyLink', authController.sendVerifyLink)
 router.post('/verifyEmail', authController.verifyEmail)
-router.get('/me', authController.getMe);
+router.get('/me', protect, authController.getMe);
 
-router.get('/profile', authController.getProfile);
-router.put('/updateProfile', authController.updateProfile);
-module.exports = router; 
+router.get('/profile', protect, authController.getProfile);
+router.put('/updateProfile', protect, authController.updateProfile);
+
+// OAuth routes
+router.post('/oauth', authController.oauthAuth);
+router.post('/verify-otp', authController.verifyOTP);
+
+module.exports = router;

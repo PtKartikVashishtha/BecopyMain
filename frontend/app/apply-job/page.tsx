@@ -10,7 +10,7 @@ import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import Sidebar from "@/components/layout/sidebar";
 import { useMediaQuery } from "react-responsive";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import ftpapi from "@/lib/ftpapi";
 import { formatDate } from "date-fns";
@@ -368,7 +368,7 @@ export default function ApplyJobPage() {
         variant: "destructive",
         duration: 4000,
       });
-      router.push('/userauth?fromApplyJob=true');
+      router.push('/login?fromApplyJob=true');
       return;
     }
 

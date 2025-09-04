@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { motion, useAnimation, useMotionValue } from "framer-motion";
 import ProfileCard from "../custom/profile-card";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 
 interface Scorer {
   id: string;

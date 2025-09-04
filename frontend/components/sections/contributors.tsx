@@ -4,7 +4,7 @@ import ProfileCard from "../custom/profile-card";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { motion, useAnimation } from "framer-motion";
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { fetchContributors } from "@/store/reducers/contributorSlice";
 
 const ITEM_GAP = 8;
