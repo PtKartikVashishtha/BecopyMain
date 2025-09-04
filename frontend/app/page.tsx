@@ -363,6 +363,7 @@ export default function Home() {
               {/* Java Card */}
               {isClient && (
                 <CodeCard
+                programId={selectedProgram._id || ""}
                   code={
                     selectedProgram.name === ""
                       ? ""
@@ -393,6 +394,7 @@ export default function Home() {
               {/* Python Card */}
               {isClient && (
                 <CodeCard
+                  programId={selectedProgram._id || ""}
                   defaultCode={settings?.item?.pythonCode || ""}
                   code={
                     selectedProgram.name === ""
@@ -423,6 +425,7 @@ export default function Home() {
               {/* HTML Card */}
               {isClient && (
                 <CodeCard
+                  programId={selectedProgram._id || ""}
                   defaultCode={settings?.item?.htmlCode || ""}
                   code={
                     selectedProgram.name === ""

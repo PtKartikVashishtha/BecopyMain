@@ -37,6 +37,7 @@ interface CodeCardProps {
   bgColor: string;
   footerBgColor: string;
   fontSize: string;
+  programId: string | null;
 }
 
 // Mobile Full-Page Code Viewer
@@ -387,7 +388,7 @@ const CodeCard = ({
   hasButtons = true,
   bgColor,
   footerBgColor,
-  fontSize,
+  fontSize
 }: CodeCardProps) => {
   const [mouseDownPosition, setMouseDownPosition] = useState<{
     x: number;
@@ -397,7 +398,6 @@ const CodeCard = ({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const programId = searchParams.get("programId") || null;
-
   const [copied, setCopied] = useState(false);
   const [highlightedCode, setHighlightedCode] = useState("");
   const [allHighlightedCode, setAllHighlightedCode] = useState({
@@ -515,41 +515,32 @@ const CodeCard = ({
     console.log("Feedback submitted:", { type: feedbackType, feedback, programId });
     // You can integrate this with your existing feedback system
   };
-  
   useEffect(() => {
     const highlight = async () => {
+      const theme = programId ? "light-plus" : "github-dark"; // light theme when programId exists
+
       const highlighter = await shiki.createHighlighter({
-        themes: ["github-dark"],
+        themes: ["github-dark", "light-plus"],
         langs: ["javascript", "python", "java", "html"],
       });
 
-      // Use dark theme for better white text visibility
       const highlighted = highlighter.codeToHtml(formatCode(code), {
-        lang: language,
-        theme: "github-dark",
+        lang: language || "javascript",
+        theme,
       });
       setHighlightedCode(highlighted);
 
-      // Highlight all languages for feedback modal
       const allHighlighted = {
-        java: highlighter.codeToHtml(formatCode(code), {
-          lang: "java",
-          theme: "github-dark",
-        }),
-        python: highlighter.codeToHtml(formatCode(code), {
-          lang: "python", 
-          theme: "github-dark",
-        }),
-        html: highlighter.codeToHtml(formatCode(code), {
-          lang: "html",
-          theme: "github-dark",
-        })
+        java: highlighter.codeToHtml(formatCode(code), { lang: "java", theme }),
+        python: highlighter.codeToHtml(formatCode(code), { lang: "python", theme }),
+        html: highlighter.codeToHtml(formatCode(code), { lang: "html", theme }),
       };
       setAllHighlightedCode(allHighlighted);
     };
 
     highlight();
-  }, [code, language, isDashboard]);
+  }, [code, language, isDashboard, programId]);
+
 
   if (programId !== null && code.length === 0) {
     return (
@@ -563,13 +554,13 @@ const CodeCard = ({
     <>
       <Card className={`w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg ${programId ? 'bg-white' : 'bg-[#1f1f24]'}`}>
         {/* Fixed header with better spacing and margins */}
-        <CardHeader className={`px-4 sm:px-6 py-2 border-b border-[#c8c8c8] ${programId ? 'bg-white' : ''}`}>
+        <CardHeader className="px-4 sm:px-6 py-2 border-b border-[#c8c8c8]">
           <div className="flex flex-col sm:grid sm:grid-cols-12 w-full gap-4 sm:gap-6">
             {/* Mobile: Language and Stats Row */}
             <div className="flex justify-between items-center sm:contents">
               {/* Language with proper margin */}
               <div className="sm:col-span-3 flex items-center mr-4">
-                <span className="text-xs sm:text-sm font-medium text-white capitalize">
+                <span className={`text-xs sm:text-sm font-medium capitalize ${programId ? 'text-gray-700' : 'text-white'}`}>
                   {language.toString().slice(0, 1).toUpperCase() +
                     language.toString().slice(1)}
                 </span>
@@ -597,14 +588,14 @@ const CodeCard = ({
             </div>
 
             {/* Title Row with better spacing and margin from buttons */}
-            <div className="sm:col-span-6 flex justify-center sm:justify-center px-4 sm:pr-10 sm:pl-6 text-white">
+            <div className={`sm:col-span-6 flex justify-center sm:justify-center px-4 sm:pr-10 sm:pl-6 ${programId ? 'text-gray-700' : 'text-white'}`}>
               <CardTitle className="text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full mr-3">
                 {title}
               </CardTitle>
             </div>
 
             {/* Dashboard buttons or Desktop stats with improved spacing and margin */}
-            <div className="hidden sm:flex sm:col-span-3 justify-end items-center ml-6">
+            <div className={`hidden sm:flex sm:col-span-3 justify-end items-center ml-6 ${programId ? 'text-gray-700' : 'text-white'}`}>
               {isDashboard ? (
                 <div className="flex space-x-2">
                   <button className="w-3 h-3 rounded-full bg-[#ff5f56]" />
@@ -612,7 +603,7 @@ const CodeCard = ({
                   <button className="w-3 h-3 rounded-full bg-[#27c93f]" />
                 </div>
               ) : (
-                <div className="flex space-x-4 text-sm">
+                <div className="flex space-x-4 text-sm ">
                   <div className="flex items-center space-x-1">
                     <Eye className="w-4 h-4" />
                     <span>{viewedNumber}</span>
@@ -632,7 +623,7 @@ const CodeCard = ({
         </CardHeader>
 
         {/* Mobile-optimized content */}
-        <CardContent className="p-1 sm:p-2 font-display ">
+        <CardContent className={`p-1 sm:p-2 font-display ${programId ? 'text-gray-600' : 'text-white'}`}>
           <ScrollArea
             ref={scrollAreaRef}
             className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-hidden scrollbar-hide"
@@ -643,14 +634,13 @@ const CodeCard = ({
               dangerouslySetInnerHTML={{
                 __html: code.length === 0 ? defaultCode : highlightedCode,
               }}
-              className="shiki break-all sm:break-normal text-white"
+              className={`shiki break-all sm:break-normal ${programId ? '[&_*]:!text-gray-800' : '[&_*]:!text-white'}`}
               style={{ 
                 backgroundColor: programId ? "white" : "#1f1f24", 
-                fontSize: fontSize,
                 wordBreak: "break-all",
                 overflowWrap: "break-word",
                 whiteSpace: "pre-wrap",
-                color: programId ? "black" : "white",
+                color: programId ? "#374151" : "white", // Use gray-700 for better contrast when programId exists
                 padding: "0.5rem",
                 borderRadius: "0.375rem"
               }}
@@ -678,7 +668,6 @@ const CodeCard = ({
                     side="top"
                     sideOffset={5}
                     className="bg-white px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50 "
-                    style={{ color: '#6b7280' }}
                   >
                     Code copied
                     <RadixTooltip.Arrow className="fill-gray-800" />
