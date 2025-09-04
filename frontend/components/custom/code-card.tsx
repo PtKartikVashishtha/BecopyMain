@@ -561,15 +561,15 @@ const CodeCard = ({
 
   return (
     <>
-      <Card className="w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg bg-[#1f1f24]">
+      <Card className={`w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg ${programId ? 'bg-white' : 'bg-[#1f1f24]'}`}>
         {/* Fixed header with better spacing and margins */}
-        <CardHeader className="px-4 sm:px-6 py-2 border-b border-[#c8c8c8]">
+        <CardHeader className={`px-4 sm:px-6 py-2 border-b border-[#c8c8c8] ${programId ? 'bg-white' : ''}`}>
           <div className="flex flex-col sm:grid sm:grid-cols-12 w-full gap-4 sm:gap-6">
             {/* Mobile: Language and Stats Row */}
             <div className="flex justify-between items-center sm:contents">
               {/* Language with proper margin */}
               <div className="sm:col-span-3 flex items-center mr-4">
-                <span className="text-xs sm:text-sm font-medium text-white">
+                <span className="text-xs sm:text-sm font-medium text-white capitalize">
                   {language.toString().slice(0, 1).toUpperCase() +
                     language.toString().slice(1)}
                 </span>
@@ -643,14 +643,14 @@ const CodeCard = ({
               dangerouslySetInnerHTML={{
                 __html: code.length === 0 ? defaultCode : highlightedCode,
               }}
-              className="shiki break-all sm:break-normal [&_*]:!text-white"
+              className="shiki break-all sm:break-normal text-white"
               style={{ 
-                backgroundColor: "#1f1f24", 
+                backgroundColor: programId ? "white" : "#1f1f24", 
                 fontSize: fontSize,
                 wordBreak: "break-all",
                 overflowWrap: "break-word",
                 whiteSpace: "pre-wrap",
-                color: "white",
+                color: programId ? "black" : "white",
                 padding: "0.5rem",
                 borderRadius: "0.375rem"
               }}
@@ -659,7 +659,7 @@ const CodeCard = ({
         </CardContent>
 
         {/* Fixed footer with better button spacing and corrected tooltip background */}
-        <CardFooter className="bg-[#202938] max-h-[40px] px-3 sm:px-4 py-3 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg rounded-t-lg">
+        <CardFooter className={`${programId ? 'bg-white' : 'bg-[#202938]'} max-h-[40px] px-3 sm:px-4 py-3 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg rounded-t-lg`}>
           {(
             <div className="flex space-x-6">
               <RadixTooltip.Provider>
@@ -677,7 +677,8 @@ const CodeCard = ({
                   <RadixTooltip.Content
                     side="top"
                     sideOffset={5}
-                    className="bg-white px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50"
+                    className="bg-white px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50 "
+                    style={{ color: '#6b7280' }}
                   >
                     Code copied
                     <RadixTooltip.Arrow className="fill-gray-800" />
@@ -691,11 +692,12 @@ const CodeCard = ({
                     <button
                       className="text-gray-400 hover:text-gray-600 transition-colors p-2"
                       onClick={onShowCode}
+
                     >
                       <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>
+                  <TooltipContent className="bg-gray-800 text-white border-gray-700">
                     <p>View</p>
                   </TooltipContent>
                 </Tooltip>
@@ -711,7 +713,7 @@ const CodeCard = ({
                       <Flag className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>
+                  <TooltipContent className="bg-gray-800 text-white border-gray-700 ">
                     <p>Bug</p>
                   </TooltipContent>
                 </Tooltip>
@@ -727,7 +729,7 @@ const CodeCard = ({
                       <Lightbulb className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>
+                  <TooltipContent className="bg-gray-800 text-white border-gray-700 ">
                     <p>Suggestion</p>
                   </TooltipContent>
                 </Tooltip>
@@ -743,7 +745,7 @@ const CodeCard = ({
                       <ExternalLink className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>
+                  <TooltipContent className="bg-gray-800 text-white border-gray-700 ">
                     <p>Share</p>
                   </TooltipContent>
                 </Tooltip>

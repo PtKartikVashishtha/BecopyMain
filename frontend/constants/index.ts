@@ -1,7 +1,7 @@
 export const HELLO_DEVELOPER = {
-    java: `<span style="color: #ffffff;">I am Mark = < web developer >;\nIn love with coding = true;\nConstantly committing(!);</span>`,
-    python: `<span style="color: #ffffff;">I am Mark = < web developer >;\nIn love with coding = true;\nConstantly committing(!);</span>`,
-    html: `<span style="color: #ffffff;">I am Mark = < web developer >;\nIn love with coding = true;\nConstantly committing(!);</span>`
+    java: `I am Mark = < web developer >;\nIn love with coding = true;\nConstantly committing(!);`,
+    python: `I am Mark = < web developer >;\nIn love with coding = true;\nConstantly committing(!);`,
+    html: `I am Mark = < web developer >;\nIn love with coding = true;\nConstantly committing(!);`
 };
 
 export interface ProfileCardProps {

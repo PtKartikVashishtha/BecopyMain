@@ -295,16 +295,12 @@ export default function Home() {
     const style = document.createElement("style");
     style.id = "code-cards-style";
     style.textContent = `
-      .code-cards-container * {
-        color: #000000 !important;
-      }
+      .code-cards-container *,
       .code-cards-container pre,
       .code-cards-container code,
       .code-cards-container p,
       .code-cards-container div,
-      .code-cards-container span {
-        color: #000000 !important;
-      }
+      .code-cards-container span 
     `;
     
     // Check if style already exists
