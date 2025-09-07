@@ -8,7 +8,7 @@ interface ProfileCardProps {
 
 const ProfileCard = ({ image, title, subtitle, country }: ProfileCardProps) => {
   return (
-    <div className="w-fit w-min-[200px] bg-gray-50 px-2 py-2 rounded-lg m-2 flex-shrink-0">
+    <div className="w-fit w-min-[200px] bg-gray-50 px-2  rounded-lg m-2 flex-shrink-0">
       <div className="flex items-center gap-2">
         <div className="w-8 h-8 bg-gray-200 rounded-full flex-shrink-0" />
         <div className="min-w-0">

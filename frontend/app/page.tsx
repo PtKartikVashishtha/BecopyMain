@@ -416,7 +416,7 @@ export default function Home() {
 
           <div className="flex-1 xl:ml-64 p-2 sm:p-4 xl:p-6">
             {/* Code Cards Grid */}
-            <div className="code-cards-container grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 mb-4">
+            <div className="code-cards-container grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4 mb-2">
               {/* Java Card */}
               {isClient && (
                 <CodeCard
@@ -543,7 +543,7 @@ export default function Home() {
       </div>
       
       {isClient && (
-        <div className="pb-1">
+        <div className="">
           <Footer />
         </div>
       )}
