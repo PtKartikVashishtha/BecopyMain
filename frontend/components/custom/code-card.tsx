@@ -759,7 +759,7 @@ const CodeCard = ({
         >
           <ScrollArea
             ref={scrollAreaRef}
-            className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-hidden scrollbar-hide"
+            className="h-[120px] sm:h-[100px] lg:h-[285px] w-full p-2 sm:p-4 overflow-hidden scrollbar-hide"
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
           >
@@ -789,13 +789,13 @@ const CodeCard = ({
           style={footerStyle}
         >
           
-            <div className="flex space-x-6">
+            <div className="flex space-x-1">
               <RadixTooltip.Provider>
                 <RadixTooltip.Root open={copied}>
                   <RadixTooltip.Trigger asChild>
                     <button
                       className="hover:opacity-70 transition-opacity p-2"
-                      style={{ color: footerTextColor }}
+                      style={{ color: '#9CA3AF' }}
                       onClick={handleCopyCode}
                     >
                       <Copy className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -817,7 +817,7 @@ const CodeCard = ({
                   <TooltipTrigger asChild>
                     <button
                       className="hover:opacity-70 transition-opacity p-2"
-                      style={{ color: footerTextColor }}
+                      style={{ color: '#9CA3AF' }}
                       onClick={onShowCode}
                     >
                       <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -834,7 +834,7 @@ const CodeCard = ({
                   <TooltipTrigger asChild>
                     <button
                       className="hover:opacity-70 transition-opacity p-2"
-                      style={{ color: footerTextColor }}
+                      style={{ color: '#9CA3AF' }}
                       onClick={(e) => handleFeedbackClick(e, "bug")}
                     >
                       <Flag className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -851,7 +851,7 @@ const CodeCard = ({
                   <TooltipTrigger asChild>
                     <button
                       className="hover:opacity-70 transition-opacity p-2"
-                      style={{ color: footerTextColor }}
+                      style={{ color: '#9CA3AF' }}
                       onClick={(e) => handleFeedbackClick(e, "suggestion")}
                     >
                       <Lightbulb className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -868,7 +868,7 @@ const CodeCard = ({
                   <TooltipTrigger asChild>
                     <button
                       className="hover:opacity-70 transition-opacity p-2"
-                      style={{ color: footerTextColor }}
+                      style={{ color: '#9CA3AF' }}
                       onClick={handleShareClick}
                     >
                       <ExternalLink className="h-4 w-4 sm:h-5 sm:w-5" />

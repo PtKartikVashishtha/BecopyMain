@@ -445,7 +445,7 @@ export default function Home() {
                   bgColor={settings?.item?.javaBackgroundColor}
                   headerBgColor={settings?.item?.javaHeaderBackgroundColor}
                   footerBgColor={settings?.item?.javaFooterBackgroundColor}
-                  fontSize={settings?.item?.javaFontSize || "14px"}
+                  fontSize={settings?.item?.javaFontSize}
                 />
               )}
 
@@ -477,7 +477,7 @@ export default function Home() {
                   bgColor={settings?.item?.pythonBackgroundColor}
                   headerBgColor={settings?.item?.pythonHeaderBackgroundColor}
                   footerBgColor={settings?.item?.pythonFooterBackgroundColor}
-                  fontSize={settings?.item?.pythonFontSize || "14px"}
+                  fontSize={settings?.item?.pythonFontSize}
                 />
               )}
 
@@ -509,7 +509,7 @@ export default function Home() {
                   bgColor={settings?.item?.htmlBackgroundColor}
                   headerBgColor={settings?.item?.htmlHeaderBackgroundColor}
                   footerBgColor={settings?.item?.htmlFooterBackgroundColor}
-                  fontSize={settings?.item?.htmlFontSize || "14px"}
+                  fontSize={settings?.item?.htmlFontSize}
                 />
               )}
             </div>
