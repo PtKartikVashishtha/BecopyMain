@@ -148,6 +148,63 @@ export default function Home() {
 
   const [selectedProgram, setSelectedProgram] = useState<Program>(selectedProgramInit);
 
+  // Helper function to strip HTML tags and decode entities
+  const stripHtmlTags = useCallback((html: string) => {
+    if (!html) return "";
+
+    let text = html
+      .replace(/<br\s*\/?>/gi, '\n')              // <br> -> single newline
+      .replace(/<\/p>/gi, '\n')                   // closing </p> -> newline
+      .replace(/<p[^>]*>/gi, '')                  // remove opening <p>
+      .replace(/<\/div>/gi, '\n')                 // closing </div> -> newline
+      .replace(/<div[^>]*>/gi, '')                // remove opening <div>
+      .replace(/<[^>]+>/g, '')                    // remove any other tags
+      .replace(/&nbsp;/g, ' ')                     // decode HTML entities
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n');
+
+    // Collapse multiple consecutive blank lines into a single blank line
+    text = text.replace(/\n{2,}/g, '\n');
+
+    // Trim leading/trailing whitespace from each line
+    text = text.split('\n').map(line => line.trimEnd()).join('\n');
+
+    return text;
+  }, []);
+
+  // Helper function to get default code content from admin settings
+  const getDefaultCodeContent = useCallback((language: string) => {
+    if (!settings?.item) return "";
+    
+    let htmlContent = "";
+    switch (language) {
+      case 'java':
+        htmlContent = settings.item.javaCode || "";
+        break;
+      case 'python':
+        htmlContent = settings.item.pythonCode || "";
+        break;
+      case 'html':
+        htmlContent = settings.item.htmlCode || "";
+        break;
+      default:
+        return "";
+    }
+    
+    const processedCode = stripHtmlTags(htmlContent);
+    
+    // Debug logging - remove this after fixing
+    console.log(`${language} raw HTML:`, JSON.stringify(htmlContent));
+    console.log(`${language} processed code:`, JSON.stringify(processedCode));
+    
+    return processedCode;
+  }, [settings?.item, stripHtmlTags]);
+
   // Safe state setters with mount checks
   const safeSetState = useCallback((setter: Function, value: any) => {
     if (isMountedRef.current) {
@@ -363,7 +420,7 @@ export default function Home() {
               {/* Java Card */}
               {isClient && (
                 <CodeCard
-                programId={selectedProgram._id || ""}
+                  programId={selectedProgram._id || ""}
                   code={
                     selectedProgram.name === ""
                       ? ""
@@ -375,7 +432,7 @@ export default function Home() {
                       ? settings?.item?.javaHeading || "Java"
                       : selectedProgram.name
                   }
-                  defaultCode={settings?.item?.javaCode || ""}
+                  defaultCode={getDefaultCodeContent("java")}
                   clickFunc={setSelectedLanguage}
                   showDialog={setShowDialog}
                   copyCode={handleCopyCode}
@@ -386,8 +443,9 @@ export default function Home() {
                   sharedNumber={selectedProgram.shares || 0}
                   hasButtons={selectedProgram.name !== ""}
                   bgColor={settings?.item?.javaBackgroundColor}
+                  headerBgColor={settings?.item?.javaHeaderBackgroundColor}
                   footerBgColor={settings?.item?.javaFooterBackgroundColor}
-                  fontSize={settings?.item?.pythonFontSize || "14px"}
+                  fontSize={settings?.item?.javaFontSize || "14px"}
                 />
               )}
 
@@ -395,7 +453,7 @@ export default function Home() {
               {isClient && (
                 <CodeCard
                   programId={selectedProgram._id || ""}
-                  defaultCode={settings?.item?.pythonCode || ""}
+                  defaultCode={getDefaultCodeContent("python")}
                   code={
                     selectedProgram.name === ""
                       ? ""
@@ -417,6 +475,7 @@ export default function Home() {
                   sharedNumber={selectedProgram.shares || 0}
                   hasButtons={selectedProgram.name !== ""}
                   bgColor={settings?.item?.pythonBackgroundColor}
+                  headerBgColor={settings?.item?.pythonHeaderBackgroundColor}
                   footerBgColor={settings?.item?.pythonFooterBackgroundColor}
                   fontSize={settings?.item?.pythonFontSize || "14px"}
                 />
@@ -426,7 +485,7 @@ export default function Home() {
               {isClient && (
                 <CodeCard
                   programId={selectedProgram._id || ""}
-                  defaultCode={settings?.item?.htmlCode || ""}
+                  defaultCode={getDefaultCodeContent("html")}
                   code={
                     selectedProgram.name === ""
                       ? ""
@@ -448,12 +507,12 @@ export default function Home() {
                   sharedNumber={selectedProgram.shares || 0}
                   hasButtons={selectedProgram.name !== ""}
                   bgColor={settings?.item?.htmlBackgroundColor}
+                  headerBgColor={settings?.item?.htmlHeaderBackgroundColor}
                   footerBgColor={settings?.item?.htmlFooterBackgroundColor}
                   fontSize={settings?.item?.htmlFontSize || "14px"}
                 />
               )}
             </div>
-
             {/* ChatGPTCard + Other Sections */}
             {isClient && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-4">
@@ -499,18 +558,24 @@ export default function Home() {
           code={
             selectedLanguage === "java"
               ? selectedProgram.name === ""
-                ? HELLO_DEVELOPER?.java || ""
+                ? getDefaultCodeContent("java") || HELLO_DEVELOPER?.java || ""
                 : removeBackticks(selectedProgram.code?.java)
               : selectedLanguage === "python"
               ? selectedProgram.name === ""
-                ? HELLO_DEVELOPER?.python || ""
+                ? getDefaultCodeContent("python") || HELLO_DEVELOPER?.python || ""
                 : removeBackticks(selectedProgram.code?.python)
               : selectedProgram.name === ""
-              ? HELLO_DEVELOPER?.html || ""
+              ? getDefaultCodeContent("html") || HELLO_DEVELOPER?.html || ""
               : removeBackticks(selectedProgram.code?.html)
           }
           title={
-            selectedProgram.name === "" ? "Hello Developer" : selectedProgram.name
+            selectedProgram.name === "" 
+              ? selectedLanguage === "java"
+                ? settings?.item?.javaHeading || "Hello Developer"
+                : selectedLanguage === "python" 
+                ? settings?.item?.pythonHeading || "Hello Developer"
+                : settings?.item?.htmlHeading || "Hello Developer"
+              : selectedProgram.name
           }
           copyCode={handleCopyCode}
         />
@@ -526,6 +591,6 @@ export default function Home() {
           selectedProgram={selectedProgram}
         />
       )}
-    </div>
-  );
+    </div> 
+  )
 }

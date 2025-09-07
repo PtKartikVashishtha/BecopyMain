@@ -250,7 +250,7 @@ const Header = ({ isSidebarOpen, toggleSidebar, setSelectedProgram }: HeaderProp
               <SelectTrigger className="bg-transparent w-30 border-none focus:outline-none">
                 <Avatar>
                   <AvatarFallback className="bg-[#ff1493] text-white">
-                    {user?.name?.split(" ").map((word) => word[0]?.toUpperCase()).join("") || "U"}
+                    {user?.name?.split(" ").map((word : any) => word[0]?.toUpperCase()).join("") || "U"}
                   </AvatarFallback>
                 </Avatar>
               </SelectTrigger>

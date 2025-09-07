@@ -5,6 +5,7 @@ import { Providers } from "@/store/provider";
 import { AuthProvider } from "@/context/AuthContext";
 import { SocketProvider } from "@/context/SocketContext";
 import { ThemeProvider } from "next-themes";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -27,15 +28,37 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <head>
+        {/* TinyMCE script */}
+        <script
+          src="https://cdn.tiny.cloud/1/xv8jfny0vl2h78pnplizgo6k5cposi1c8b2b4qkgrhzu83f4/tinymce/8/tinymce.min.js"
+          referrerPolicy="origin"
+          crossOrigin="anonymous"
+        ></script>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof tinymce !== 'undefined') {
+                tinymce.init({
+                  selector: '#mytextarea',
+                  height: 400,
+                  menubar: false,
+                  plugins: 'lists link image table code help wordcount',
+                  toolbar:
+                    'undo redo | formatselect | bold italic backcolor | \
+                    alignleft aligncenter alignright alignjustify | \
+                    bullist numlist outdent indent | removeformat | help'
+                });
+              }
+            `,
+          }}
+        />
+      </head>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AuthProvider>
-          <ThemeProvider defaultTheme="system" enableSystem attribute='class'>
+          <ThemeProvider defaultTheme="system" enableSystem attribute="class">
             <Providers>
-              <SocketProvider>
-                {children}
-              </SocketProvider>
+              <SocketProvider>{children}</SocketProvider>
             </Providers>
           </ThemeProvider>
         </AuthProvider>

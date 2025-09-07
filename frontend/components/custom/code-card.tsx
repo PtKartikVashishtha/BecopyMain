@@ -36,6 +36,7 @@ interface CodeCardProps {
   hasButtons: boolean;
   bgColor: string;
   footerBgColor: string;
+  headerBgColor?: string;
   fontSize: string;
   programId: string | null;
 }
@@ -372,6 +373,7 @@ const MobileSharePage = ({
   );
 };
 
+
 const CodeCard = ({
   code,
   language,
@@ -387,6 +389,7 @@ const CodeCard = ({
   defaultCode,
   hasButtons = true,
   bgColor,
+  headerBgColor ,
   footerBgColor,
   fontSize
 }: CodeCardProps) => {
@@ -412,6 +415,56 @@ const CodeCard = ({
   const [showMobileShare, setShowMobileShare] = useState(false);
   const [feedbackType, setFeedbackType] = useState<"bug" | "suggestion">("bug");
 
+  // Helper function to strip HTML tags and get clean text for code highlighting
+  const stripHtmlTags = useCallback((html: string) => {
+    if (!html) return "";
+    
+    // Create a temporary div to decode HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Get text content preserving line breaks
+    let text = tempDiv.textContent || tempDiv.innerText || "";
+    
+    // Handle different line break scenarios from rich text editors
+    // First, handle HTML line breaks that might be in the original
+    text = html
+      .replace(/<br\s*\/?>/gi, '\n')  // Convert <br> tags to newlines
+      .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')  // Convert paragraph breaks to double newlines
+      .replace(/<p[^>]*>/gi, '')  // Remove opening p tags
+      .replace(/<\/p>/gi, '\n')   // Convert closing p tags to newlines
+      .replace(/<div[^>]*>/gi, '')  // Remove opening div tags
+      .replace(/<\/div>/gi, '\n')   // Convert closing div tags to newlines
+      .replace(/<[^>]*>/g, '');   // Remove any remaining HTML tags
+    
+    // Clean up the text while preserving intentional line breaks
+    text = text
+      .replace(/&nbsp;/g, ' ')    // Convert non-breaking spaces
+      .replace(/&amp;/g, '&')     // Convert HTML entities
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\r\n/g, '\n')     // Normalize Windows line endings
+      .replace(/\r/g, '\n')       // Normalize Mac line endings
+      .replace(/[ \t]+$/gm, '')   // Remove trailing spaces from each line
+      .replace(/^\s+|\s+$/g, ''); // Trim leading/trailing whitespace from entire text
+    
+    return text;
+  }, []);
+
+
+  // Get the actual code content to display
+  const getDisplayCode = useCallback(() => {
+    if (code && code.length > 0) {
+      return code; // Use program code if available
+    }
+    // Use admin default code (process HTML properly for syntax highlighting)
+    const processedCode = stripHtmlTags(defaultCode);
+    console.log('Processed code:', JSON.stringify(processedCode)); // Debug log
+    return processedCode;
+  }, [code, defaultCode, stripHtmlTags]);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     setMouseDownPosition({ x: e.clientX, y: e.clientY });
   };
@@ -432,7 +485,12 @@ const CodeCard = ({
   
   const formatCode = (code: string) => {
     if (typeof code !== "string") return "";
-    return code.replaceAll("    ", "  ");
+    
+    // Don't modify the formatting - preserve original line breaks
+    return code
+      .replace(/\t/g, '  ')       // Convert tabs to 2 spaces for consistency
+      .replace(/\r\n/g, '\n')     // Normalize line endings
+      .replace(/\r/g, '\n');      // Handle old Mac line endings
   };
   
   const handleCopyCode = async (e?: React.MouseEvent) => {
@@ -441,8 +499,10 @@ const CodeCard = ({
       e.stopPropagation();
     }
     
+    const codeToRopy = getDisplayCode();
+    
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(codeToRopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -491,11 +551,12 @@ const CodeCard = ({
       setShowMobileShare(true);
     } else {
       // Desktop sharing logic
+      const codeToShare = getDisplayCode();
       try {
         if (navigator.share) {
           await navigator.share({
             title: "Check out this code",
-            text: `${code}`,
+            text: `${codeToShare}`,
             url: window.location.href,
           });
           console.log("code shared successfully");
@@ -508,59 +569,122 @@ const CodeCard = ({
         console.log("error", error);
       }
     }
-  }, [code]);
+  }, [getDisplayCode]);
 
   const handleFeedbackSubmit = async (feedback: string) => {
     // Here you would typically send the feedback to your API
     console.log("Feedback submitted:", { type: feedbackType, feedback, programId });
     // You can integrate this with your existing feedback system
   };
+
   useEffect(() => {
-    const highlight = async () => {
-      const theme = programId ? "light-plus" : "github-dark"; // light theme when programId exists
+  const highlight = async () => {
+    const theme = programId ? "light-plus" : "github-dark";
+    const displayCode = getDisplayCode();
+    
+    console.log('Code before highlighting:', JSON.stringify(displayCode)); // Debug log
+    
+    const highlighter = await shiki.createHighlighter({
+      themes: ["github-dark", "light-plus"],
+      langs: ["javascript", "python", "java", "html"],
+    });
 
-      const highlighter = await shiki.createHighlighter({
-        themes: ["github-dark", "light-plus"],
-        langs: ["javascript", "python", "java", "html"],
-      });
+    // Make sure to preserve line breaks in the highlighting process
+    const highlighted = highlighter.codeToHtml(displayCode, {
+      lang: language || "javascript",
+      theme,
+    });
+    
+    console.log('Highlighted HTML:', highlighted); // Debug log
+    setHighlightedCode(highlighted);
 
-      const highlighted = highlighter.codeToHtml(formatCode(code), {
-        lang: language || "javascript",
-        theme,
-      });
-      setHighlightedCode(highlighted);
-
-      const allHighlighted = {
-        java: highlighter.codeToHtml(formatCode(code), { lang: "java", theme }),
-        python: highlighter.codeToHtml(formatCode(code), { lang: "python", theme }),
-        html: highlighter.codeToHtml(formatCode(code), { lang: "html", theme }),
-      };
-      setAllHighlightedCode(allHighlighted);
+    const allHighlighted = {
+      java: highlighter.codeToHtml(displayCode, { lang: "java", theme }),
+      python: highlighter.codeToHtml(displayCode, { lang: "python", theme }),
+      html: highlighter.codeToHtml(displayCode, { lang: "html", theme }),
     };
+    setAllHighlightedCode(allHighlighted);
+  };
 
-    highlight();
-  }, [code, language, isDashboard, programId]);
+  highlight();
+}, [code, defaultCode, language, isDashboard, programId, getDisplayCode]);
 
 
-  if (programId !== null && code.length === 0) {
+  if (programId !== null && code.length === 0 && !defaultCode) {
     return (
       <div className="bg-green-50 p-4 rounded-lg mb-4 text-center">
         <p className="text-green-700">Loading Code...</p>
       </div>
     );
   }
+  
+  const getTextColor = (backgroundColor?: string) => {
+    if (!backgroundColor) {
+      return programId ? '#374151' : '#ffffff';
+    }
+    
+    // Simple contrast check
+    const hex = backgroundColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    
+    return brightness > 155 ? '#374151' : '#ffffff';
+  };
+
+  const cardStyle = {
+    backgroundColor: bgColor || (programId ? '#ffffff' : '#1f1f24'),
+  };
+
+  const headerStyle = {
+    backgroundColor: headerBgColor || (programId ? '#ffffff' : '#1f1f24'),
+    borderBottomColor: programId ? '#c8c8c8' : '#404040',
+  };
+
+  const footerStyle = {
+    backgroundColor: footerBgColor || (programId ? '#ffffff' : '#202938'),
+    borderTopColor: programId ? '#c8c8c8' : '#404040',
+  };
+
+  // Content style now uses admin font size only - no fallback
+  const contentStyle = {
+    backgroundColor: bgColor || (programId ? '#ffffff' : '#1f1f24'),
+    ...(fontSize && { fontSize: fontSize }) // Only apply if fontSize exists
+  };
+
+  const headerTextColor = getTextColor(headerBgColor);
+  const contentTextColor = getTextColor(bgColor);
+  const footerTextColor = getTextColor(footerBgColor);
+
+  // Text style for header and title elements
+  const textStyle = {
+    ...(fontSize && { fontSize: fontSize })
+  };
 
   return (
     <>
-      <Card className={`w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg ${programId ? 'bg-white' : 'bg-[#1f1f24]'}`}>
-        {/* Fixed header with better spacing and margins */}
-        <CardHeader className="px-4 sm:px-6 py-2 border-b border-[#c8c8c8]">
+      <Card 
+        className="w-full max-w-full hover:cursor-pointer shadow-lg rounded-lg"
+        style={cardStyle}
+      >
+        {/* Header with dynamic styling */}
+        <CardHeader 
+          className="px-4 sm:px-6 py-2 border-b rounded-t-lg"
+          style={headerStyle}
+        >
           <div className="flex flex-col sm:grid sm:grid-cols-12 w-full gap-4 sm:gap-6">
             {/* Mobile: Language and Stats Row */}
             <div className="flex justify-between items-center sm:contents">
               {/* Language with proper margin */}
               <div className="sm:col-span-3 flex items-center mr-4">
-                <span className={`text-xs sm:text-sm font-medium capitalize ${programId ? 'text-gray-700' : 'text-white'}`}>
+                <span 
+                  className="text-xs sm:text-sm font-medium capitalize"
+                  style={{ 
+                    color: headerTextColor,
+                    ...textStyle
+                  }}
+                >
                   {language.toString().slice(0, 1).toUpperCase() +
                     language.toString().slice(1)}
                 </span>
@@ -570,32 +694,38 @@ const CodeCard = ({
               <div className="flex sm:hidden space-x-4">
                 {!isDashboard && (
                   <>
-                    <div className="flex items-center space-x-1 text-gray-600">
+                    <div className="flex items-center space-x-1" style={{ color: headerTextColor }}>
                       <Eye className="w-3 h-3" />
-                      <span className="text-xs">{viewedNumber}</span>
+                      <span className="text-xs" style={textStyle}>{viewedNumber}</span>
                     </div>
-                    <div className="flex items-center space-x-1 text-gray-600">
+                    <div className="flex items-center space-x-1" style={{ color: headerTextColor }}>
                       <Copy className="w-3 h-3" />
-                      <span className="text-xs">{copiedNumber}</span>
+                      <span className="text-xs" style={textStyle}>{copiedNumber}</span>
                     </div>
-                    <div className="flex items-center space-x-1 text-gray-600">
+                    <div className="flex items-center space-x-1" style={{ color: headerTextColor }}>
                       <ExternalLink className="w-3 h-3" />
-                      <span className="text-xs">{sharedNumber}</span>
+                      <span className="text-xs" style={textStyle}>{sharedNumber}</span>
                     </div>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Title Row with better spacing and margin from buttons */}
-            <div className={`sm:col-span-6 flex justify-center sm:justify-center px-4 sm:pr-10 sm:pl-6 ${programId ? 'text-gray-700' : 'text-white'}`}>
-              <CardTitle className="text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full mr-3">
+            {/* Title Row */}
+            <div className="sm:col-span-6 flex justify-center sm:justify-center px-4 sm:pr-10 sm:pl-6">
+              <CardTitle 
+                className="text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full mr-3"
+                style={{ 
+                  color: headerTextColor,
+                  ...textStyle
+                }}
+              >
                 {title}
               </CardTitle>
             </div>
 
-            {/* Dashboard buttons or Desktop stats with improved spacing and margin */}
-            <div className={`hidden sm:flex sm:col-span-3 justify-end items-center ml-6 ${programId ? 'text-gray-700' : 'text-white'}`}>
+            {/* Dashboard buttons or Desktop stats */}
+            <div className="hidden sm:flex sm:col-span-3 justify-end items-center ml-6">
               {isDashboard ? (
                 <div className="flex space-x-2">
                   <button className="w-3 h-3 rounded-full bg-[#ff5f56]" />
@@ -603,18 +733,18 @@ const CodeCard = ({
                   <button className="w-3 h-3 rounded-full bg-[#27c93f]" />
                 </div>
               ) : (
-                <div className="flex space-x-4 text-sm ">
+                <div className="flex space-x-4 text-sm" style={{ color: headerTextColor }}>
                   <div className="flex items-center space-x-1">
                     <Eye className="w-4 h-4" />
-                    <span>{viewedNumber}</span>
+                    <span style={textStyle}>{viewedNumber}</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Copy className="w-4 h-4" />
-                    <span>{copiedNumber}</span>
+                    <span style={textStyle}>{copiedNumber}</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <ExternalLink className="w-4 h-4" />
-                    <span>{sharedNumber}</span>
+                    <span style={textStyle}>{sharedNumber}</span>
                   </div>
                 </div>
               )}
@@ -622,8 +752,11 @@ const CodeCard = ({
           </div>
         </CardHeader>
 
-        {/* Mobile-optimized content */}
-        <CardContent className={`p-1 sm:p-2 font-display ${programId ? 'text-gray-600' : 'text-white'}`}>
+        {/* Content with dynamic styling */}
+        <CardContent 
+          className="p-1 sm:p-2 font-display"
+          style={contentStyle}
+        >
           <ScrollArea
             ref={scrollAreaRef}
             className="h-[120px] sm:h-[100px] lg:h-[135px] w-full p-2 sm:p-4 overflow-hidden scrollbar-hide"
@@ -632,33 +765,37 @@ const CodeCard = ({
           >
             <div
               dangerouslySetInnerHTML={{
-                __html: code.length === 0 ? defaultCode : highlightedCode,
+                __html: highlightedCode,
               }}
-              className={`shiki break-all sm:break-normal ${programId ? '[&_*]:!text-gray-800' : '[&_*]:!text-white'}`}
+              className="shiki"
               style={{ 
-                backgroundColor: programId ? "white" : "#1f1f24", 
-                wordBreak: "break-all",
-                overflowWrap: "break-word",
-                whiteSpace: "pre-wrap",
-                color: programId ? "#374151" : "white", // Use gray-700 for better contrast when programId exists
+                backgroundColor: bgColor || (programId ? "white" : "#1f1f24"), 
+                color: contentTextColor,
                 padding: "0.5rem",
-                borderRadius: "0.375rem"
+                borderRadius: "0.375rem",
+                whiteSpace: "pre-wrap",           // ✅ Preserve exact whitespace and line breaks
+                overflow: "auto",            // ✅ Allow scrolling for long lines
+                fontFamily: "monospace",     // ✅ Ensure monospace font
+                lineHeight: "1.5",           // ✅ Better line spacing
+                wordWrap: "break-word",      // ✅ Break very long words if needed
+                ...(fontSize && { fontSize: fontSize })
               }}
             />
           </ScrollArea>
         </CardContent>
-
-        {/* Fixed footer with better button spacing and corrected tooltip background */}
-        <CardFooter className={`${programId ? 'bg-white' : 'bg-[#202938]'} max-h-[40px] px-3 sm:px-4 py-3 border-t border-[#c8c8c8] flex items-center justify-center rounded-b-lg rounded-t-lg`}>
-          {(
+        {/* Footer with dynamic styling */}
+        <CardFooter 
+          className="max-h-[40px] px-3 sm:px-4 py-3 border-t flex items-center justify-center rounded-b-lg"
+          style={footerStyle}
+        >
+          
             <div className="flex space-x-6">
               <RadixTooltip.Provider>
                 <RadixTooltip.Root open={copied}>
                   <RadixTooltip.Trigger asChild>
                     <button
-                      className={`hover:text-gray-600 transition-colors p-2 ${
-                        copied ? "text-gray-600" : "text-gray-400"
-                      }`}
+                      className="hover:opacity-70 transition-opacity p-2"
+                      style={{ color: footerTextColor }}
                       onClick={handleCopyCode}
                     >
                       <Copy className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -667,7 +804,7 @@ const CodeCard = ({
                   <RadixTooltip.Content
                     side="top"
                     sideOffset={5}
-                    className="bg-white px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50 "
+                    className="bg-gray-800 text-white px-3 py-2 rounded text-sm shadow-lg animate-fadeIn z-50"
                   >
                     Code copied
                     <RadixTooltip.Arrow className="fill-gray-800" />
@@ -679,9 +816,9 @@ const CodeCard = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="text-gray-400 hover:text-gray-600 transition-colors p-2"
+                      className="hover:opacity-70 transition-opacity p-2"
+                      style={{ color: footerTextColor }}
                       onClick={onShowCode}
-
                     >
                       <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
@@ -696,13 +833,14 @@ const CodeCard = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="text-gray-400 hover:text-gray-600 transition-colors p-2"
+                      className="hover:opacity-70 transition-opacity p-2"
+                      style={{ color: footerTextColor }}
                       onClick={(e) => handleFeedbackClick(e, "bug")}
                     >
                       <Flag className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent className="bg-gray-800 text-white border-gray-700 ">
+                  <TooltipContent className="bg-gray-800 text-white border-gray-700">
                     <p>Bug</p>
                   </TooltipContent>
                 </Tooltip>
@@ -712,13 +850,14 @@ const CodeCard = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="text-gray-400 hover:text-gray-600 transition-colors p-2"
+                      className="hover:opacity-70 transition-opacity p-2"
+                      style={{ color: footerTextColor }}
                       onClick={(e) => handleFeedbackClick(e, "suggestion")}
                     >
                       <Lightbulb className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent className="bg-gray-800 text-white border-gray-700 ">
+                  <TooltipContent className="bg-gray-800 text-white border-gray-700">
                     <p>Suggestion</p>
                   </TooltipContent>
                 </Tooltip>
@@ -728,19 +867,20 @@ const CodeCard = ({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="text-gray-400 hover:text-gray-600 transition-colors p-2"
+                      className="hover:opacity-70 transition-opacity p-2"
+                      style={{ color: footerTextColor }}
                       onClick={handleShareClick}
                     >
                       <ExternalLink className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent className="bg-gray-800 text-white border-gray-700 ">
+                  <TooltipContent className="bg-gray-800 text-white border-gray-700">
                     <p>Share</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </div>
-          )}
+          
         </CardFooter>
       </Card>
 
@@ -748,7 +888,7 @@ const CodeCard = ({
       <MobileCodeViewer
         isOpen={showMobileViewer}
         onClose={() => setShowMobileViewer(false)}
-        code={code}
+        code={getDisplayCode()}
         language={language}
         title={title}
         highlightedCode={highlightedCode}
@@ -762,9 +902,9 @@ const CodeCard = ({
         title={title}
         onSubmit={handleFeedbackSubmit}
         codeData={{
-          java: code,
-          python: code,
-          html: code,
+          java: getDisplayCode(),
+          python: getDisplayCode(),
+          html: getDisplayCode(),
           javaHighlighted: allHighlightedCode.java,
           pythonHighlighted: allHighlightedCode.python,
           htmlHighlighted: allHighlightedCode.html
@@ -774,7 +914,7 @@ const CodeCard = ({
       <MobileSharePage
         isOpen={showMobileShare}
         onClose={() => setShowMobileShare(false)}
-        code={code}
+        code={getDisplayCode()}
         title={title}
         language={language}
       />

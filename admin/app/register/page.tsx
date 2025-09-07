@@ -43,6 +43,7 @@ export default function RegisterPage() {
       router.push('/admin/dashboard');
     } catch (error) {
       setError('An error occurred during registration');
+      console.log("Registration error:", error);
     } finally {
       setLoading(false);
     }
@@ -134,6 +135,7 @@ export default function RegisterPage() {
             disabled={loading}
             className={`w-full p-2 text-white rounded ${loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
               }`}
+            
           >
             {loading ? 'Registering...' : 'Register'}
           </button>
