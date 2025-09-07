@@ -659,7 +659,7 @@ const CodeCard = ({
 
   // Text style for header and title elements
   const textStyle = {
-    ...(fontSize && { fontSize: fontSize })
+    
   };
 
   return (
@@ -681,8 +681,7 @@ const CodeCard = ({
                 <span 
                   className="text-xs sm:text-sm font-medium capitalize"
                   style={{ 
-                    color: headerTextColor,
-                    ...textStyle
+                    color: headerTextColor
                   }}
                 >
                   {language.toString().slice(0, 1).toUpperCase() +
@@ -696,7 +695,7 @@ const CodeCard = ({
                   <>
                     <div className="flex items-center space-x-1" style={{ color: headerTextColor }}>
                       <Eye className="w-3 h-3" />
-                      <span className="text-xs" style={textStyle}>{viewedNumber}</span>
+                      <span className="text-xs" >{viewedNumber}</span>
                     </div>
                     <div className="flex items-center space-x-1" style={{ color: headerTextColor }}>
                       <Copy className="w-3 h-3" />
@@ -716,8 +715,7 @@ const CodeCard = ({
               <CardTitle 
                 className="text-sm sm:text-md md:text-lg lg:text-xl text-center truncate max-w-full mr-3"
                 style={{ 
-                  color: headerTextColor,
-                  ...textStyle
+                  color: headerTextColor
                 }}
               >
                 {title}
