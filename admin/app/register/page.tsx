@@ -43,7 +43,6 @@ export default function RegisterPage() {
       router.push('/admin/dashboard');
     } catch (error) {
       setError('An error occurred during registration');
-      console.log("Registration error:", error);
     } finally {
       setLoading(false);
     }

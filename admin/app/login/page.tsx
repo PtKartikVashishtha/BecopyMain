@@ -10,12 +10,11 @@ export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const getUseAuth = async () => {}
   const { isAuthenticated, login } =  useAuth();
   useEffect(() => {
     // If already authenticated, redirect to dashboard
     if (isAuthenticated) {
-      router.push('/dashboard');
+      router.push('/admin/dashboard');
     }
   }, [isAuthenticated, router]);
 
