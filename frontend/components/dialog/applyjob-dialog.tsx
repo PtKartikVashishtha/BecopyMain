@@ -19,7 +19,7 @@ import { Select } from '@/components/ui/select';
 
 import { useToast } from '@/hooks/use-toast';
 import { FileText, UploadCloud, Loader2 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth'; // Assuming you have useAuth for user details
+import { useAuth } from '@/context/AuthContext';
 import { useRef } from 'react';
 
 import ftpapi from '@/lib/ftpapi';
@@ -134,7 +134,7 @@ export function ApplyJobDialog({
 
     if(!user) {
           localStorage.setItem('jobApplyData', JSON.stringify(applyFormData))
-          return router.push('/userauth?fromApplyJob=true')
+          return router.push('/login?fromApplyJob=true')
 
     }
 
@@ -187,7 +187,7 @@ export function ApplyJobDialog({
   useEffect(() => {
     // if (open && !isAuthenticated) {
     //   onOpenChange(false); // Close the dialog
-    //   router.push('/userauth'); // Redirect to auth page
+    //   router.push('/login'); // Redirect to auth page
     // }
   }, [open, isAuthenticated, router, onOpenChange]);
   if (!open) return null;

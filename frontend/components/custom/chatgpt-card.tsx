@@ -77,7 +77,7 @@ const ChatGPTCard = ({ language, clickFunc, showDialog }: ChatGPTCardProps) => {
         </div>
         <CardContent className="p-0 ">
           <textarea
-            className="w-full h-28 sm:h-32 bg-white p-2 text-sm font-mono outline-none overflow-auto size-fixed min-h-[125px] sm:min-h-[185px]"
+            className="w-full h-28 sm:h-20 bg-white p-2 text-sm font-mono outline-none overflow-auto size-fixed min-h-[125px] sm:min-h-[128px]"
             placeholder="// Write your code here to convert..."
             value={code}
             onChange={(e) => setCode(e.target.value)}
@@ -143,7 +143,7 @@ const ChatGPTCard = ({ language, clickFunc, showDialog }: ChatGPTCardProps) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-white bg-[#16a34a] hover:bg-[#15803d] hover:text-white outline-none"
+                  className="text-white bg-[#0284DA] hover:bg-[#0284FF] hover:text-white outline-none"
                   onClick={() => setAskGPTOpen(true)}
                 >
                   <MessageCircle className="h-4 w-4 mr-1" />

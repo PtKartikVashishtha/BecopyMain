@@ -1,9 +1,9 @@
 "use client";
-
-import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import Category from "@/components/sections/sidebar/category";
+
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { Search, ChevronDown, ChevronRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import DailyQuiz from "@/components/sections/sidebar/daily-quiz";
 import Articles from "@/components/sections/sidebar/articles";
 import { Button } from "../ui/button";
@@ -15,82 +15,230 @@ import { useRouter, usePathname } from "next/navigation";
 import { useMediaQuery } from "react-responsive";
 import { fetchSettings } from "@/store/reducers/settingSlice";
 import PostJob from "../ui/postjob";
-import ApplyJobPage from "../ui/applypost";
+import api from "@/lib/api";
 
 interface SidebarProps {
   isSidebarOpen: boolean;
+  expandedCategories?: string[];
   onSelectProgram: (program: Program) => void;
-  onCloseSidebar?: () => void;
-  onShowPostJob: () => void;
+  onShowJobPosting: () => void;
   onShowApplyJob: () => void;
+  onCloseSidebar?: () => void;
+  toggleCategory: () => void;
+}
+
+interface CategoryPrograms {
+  [categoryName: string]: Program[];
 }
 
 const Sidebar = ({
   isSidebarOpen,
+  expandedCategories: parentExpandedCategories = [],
   onSelectProgram,
-  onCloseSidebar,
-  onShowPostJob,
+  onShowJobPosting,
   onShowApplyJob,
+  onCloseSidebar,
 }: SidebarProps) => {
+  const isMountedRef = useRef(false);
   const dispatch = useAppDispatch();
   const router = useRouter();
   const pathname = usePathname();
-  const isMobile = useMediaQuery({ maxWidth: 768 });
+  const rawIsMobile = useMediaQuery({ maxWidth: 768 });
+  const isMobile = isMountedRef.current ? rawIsMobile : false;
+
+  // Initialize with safe defaults - FIXED: Use useMemo to prevent recreation
+  const initialExpandedCategories = useMemo(() => 
+    Array.isArray(parentExpandedCategories) ? [...parentExpandedCategories] : [], 
+    []
+  );
 
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [programNotFound, setProgramNotFound] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>(initialExpandedCategories);
   const [showPostJob, setShowPostJob] = useState(false);
-  const [showApplyJob, setShowApplyJob] = useState(false);
+  const [categoryPrograms, setCategoryPrograms] = useState<CategoryPrograms>({});
+  const [dataFetched, setDataFetched] = useState(false);
 
-  const categoriesState = useAppSelector((state) => state.categories);
-  const programsState = useAppSelector((state) => state.programs);
-  const settingsState = useAppSelector((state) => state.settings);
+  // Track mounting
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
-  const categories = categoriesState.items;
-  const programs = programsState.items;
+  // Add CSS for hiding scrollbars
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "sidebar-scrollbar-style";
+    style.textContent = `
+      /* Hide scrollbar for webkit browsers (Chrome, Safari, Edge) */
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      
+      /* Hide scrollbar for IE, Edge and Firefox */
+      .hide-scrollbar {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+      }
+      
+      /* Ensure scrolling still works */
+      .hide-scrollbar {
+        overflow: auto;
+      }
+    `;
+    
+    // Check if style already exists
+    const existingStyle = document.getElementById("sidebar-scrollbar-style");
+    if (!existingStyle) {
+      document.head.appendChild(style);
+    }
+
+    return () => {
+      const styleToRemove = document.getElementById("sidebar-scrollbar-style");
+      if (styleToRemove && document.head.contains(styleToRemove)) {
+        document.head.removeChild(styleToRemove);
+      }
+    };
+  }, []);
+
+  // Redux state with safe defaults
+  const categoriesState = useAppSelector((state) => state.categories) || { items: [] };
+  const programsState = useAppSelector((state) => state.programs) || { items: [] };
+  const settingsState = useAppSelector((state) => state.settings) || { item: null };
+
+  const categories = Array.isArray(categoriesState.items) ? categoriesState.items : [];
+  const programs = Array.isArray(programsState.items) ? programsState.items : [];
   const settings = settingsState.item;
 
+  // FIXED: Fetch data only once with proper dependency management
   useEffect(() => {
-    dispatch(fetchCategories());
-    dispatch(fetchPrograms());
-    dispatch(fetchSettings());
+    if (!isMountedRef.current || dataFetched) return;
+
+    let abortController = new AbortController();
+
+    const fetchData = async () => {
+      try {
+        if (isMountedRef.current && !abortController.signal.aborted) {
+          await Promise.allSettled([
+            dispatch(fetchCategories()),
+            dispatch(fetchPrograms()),
+            dispatch(fetchSettings())
+          ]);
+          
+          if (isMountedRef.current) {
+            setDataFetched(true);
+          }
+        }
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          console.error("Error fetching sidebar data:", error);
+        }
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      abortController.abort();
+    };
   }, [dispatch]);
 
+  // FIXED: Remove the problematic useEffect that was causing infinite updates
+  // Instead, initialize expandedCategories only when categories are first loaded
   useEffect(() => {
-    if (categories.length > 0 && expandedCategories.length === 0) {
+    if (categories.length > 0 && expandedCategories.length === 0 && isMountedRef.current) {
       setExpandedCategories([categories[0].name]);
     }
-  }, [categories, expandedCategories]);
+  }, [categories.length]);
 
-  const toggleCategory = (categoryName: string) => {
-    setExpandedCategories((prev) =>
-      prev.includes(categoryName)
+  // FIXED: Group programs by category ID properly
+  const groupProgramsByCategory = useMemo(() => {
+    const grouped: CategoryPrograms = {};
+    
+    categories.forEach(category => {
+      // Match programs by category._id to category._id
+      const categoryPrograms = programs.filter(program => program.category === category._id);
+      grouped[category.name] = categoryPrograms;
+    });
+    
+    return grouped;
+  }, [categories, programs]);
+
+  // Memoized functions to prevent recreation
+  const fetchProgramsForCategory = useCallback(async (categoryId: string, categoryName: string) => {
+    if (!isMountedRef.current) {
+      return;
+    }
+    
+    try {
+      // Use the grouped programs instead of fetching
+      const categoryPrograms = groupProgramsByCategory[categoryName] || [];
+      
+      if (isMountedRef.current) {
+        setCategoryPrograms(prev => ({
+          ...prev,
+          [categoryName]: categoryPrograms
+        }));
+      }
+    } catch (error) {
+      console.error(`Failed to fetch programs for category ${categoryName}:`, error);
+      if (isMountedRef.current) {
+        setCategoryPrograms(prev => ({
+          ...prev,
+          [categoryName]: []
+        }));
+      }
+    }
+  }, [groupProgramsByCategory]);
+
+  const toggleCategory = useCallback(async (categoryName: string) => {
+    if (!isMountedRef.current || !Array.isArray(expandedCategories)) return;
+    
+    const isExpanding = !expandedCategories.includes(categoryName);
+    
+    setExpandedCategories(prev => {
+      if (!Array.isArray(prev)) return [categoryName];
+      return prev.includes(categoryName)
         ? prev.filter((name) => name !== categoryName)
-        : [...prev, categoryName]
-    );
-  };
+        : [...prev, categoryName];
+    });
 
-  const handleSearch = (query: string) => {
+    if (isExpanding) {
+      const category = categories.find(cat => cat.name === categoryName);
+      if (category) {
+        await fetchProgramsForCategory(category._id, categoryName);
+      }
+    }
+  }, [expandedCategories, categories, fetchProgramsForCategory]);
+
+  // FIXED: Improved search functionality
+  const handleSearch = useCallback((query: string) => {
+    if (!isMountedRef.current) return;
+    
     setSearchQuery(query);
 
     if (query.trim()) {
+      // Find programs that match the search query
       const matchingPrograms = programs.filter((program) =>
-        program.name.toLowerCase().includes(query.toLowerCase())
+        program.name && program.name.toLowerCase().includes(query.toLowerCase())
       );
-      const matchingCategoryNames = Array.from(
-        new Set(matchingPrograms.map((p) => p.category))
+      
+      // Get categories that contain matching programs
+      const matchingCategoryIds = Array.from(
+        new Set(matchingPrograms.map((p) => p.category).filter(Boolean))
       );
+      
+      // Find category names from category IDs
+      const matchingCategoryNames = categories
+        .filter(cat => matchingCategoryIds.includes(cat._id))
+        .map(cat => cat.name);
 
+      // Auto-expand categories with matching programs
       matchingCategoryNames.forEach((categoryName) => {
-        if (!expandedCategories.includes(categoryName)) {
+        if (Array.isArray(expandedCategories) && !expandedCategories.includes(categoryName)) {
           toggleCategory(categoryName);
-        }
-      });
-
-      expandedCategories.forEach((name) => {
-        if (!matchingCategoryNames.includes(name)) {
-          toggleCategory(name);
         }
       });
 
@@ -98,47 +246,57 @@ const Sidebar = ({
     } else {
       setProgramNotFound(false);
     }
-  };
+  }, [programs, categories, expandedCategories, toggleCategory]);
 
-  // Handle showing full-screen components for mobile
-  const handlePostJobClick = () => {
+  const handlePostJobClick = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
     if (isMobile) {
       setShowPostJob(true);
-      if (onCloseSidebar) {
-        onCloseSidebar();
-      }
+      onCloseSidebar?.();
     } else {
       handleNavigation("/post-job");
     }
-  };
+  }, [isMobile, onCloseSidebar]);
 
-  const handleApplyJobClick = () => {
-    if (isMobile) {
-      setShowApplyJob(true);
-      if (onCloseSidebar) {
-        onCloseSidebar();
-      }
-    } else {
-      onShowApplyJob();
+  const handleClosePostJob = useCallback(() => {
+    if (isMountedRef.current) {
+      setShowPostJob(false);
     }
-  };
+  }, []);
 
-  // Handle closing full-screen components
-  const handleClosePostJob = () => {
-    setShowPostJob(false);
-  };
-
-  const handleCloseApplyJob = () => {
-    setShowApplyJob(false);
-  };
-
-  // Handle other navigation actions
-  const handleNavigation = (path: string) => {
-    if (onCloseSidebar) {
-      onCloseSidebar();
-    }
+  const handleNavigation = useCallback((path: string) => {
+    onCloseSidebar?.();
     router.push(path);
-  };
+  }, [onCloseSidebar, router]);
+
+  // FIXED: Improved filtered categories with search functionality
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return categories;
+    }
+    
+    return categories.filter(category => {
+      const categoryPrograms = groupProgramsByCategory[category.name] || [];
+      const matchingPrograms = categoryPrograms.filter(program => 
+        program.name && program.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      return matchingPrograms.length > 0;
+    });
+  }, [searchQuery, categories, groupProgramsByCategory]);
+
+  // FIXED: Filter programs within categories based on search
+  const getFilteredProgramsForCategory = useCallback((categoryName: string) => {
+    const categoryPrograms = groupProgramsByCategory[categoryName] || [];
+    
+    if (!searchQuery.trim()) {
+      return categoryPrograms;
+    }
+    
+    return categoryPrograms.filter(program => 
+      program.name && program.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [groupProgramsByCategory, searchQuery]);
 
   // Show full-screen PostJob component
   if (showPostJob && isMobile) {
@@ -149,19 +307,15 @@ const Sidebar = ({
     );
   }
 
-  // Show full-screen ApplyJob component
-  if (showApplyJob && isMobile) {
-    return (
-      <div className="fixed inset-0 z-50 bg-white">
-        <ApplyJobPage onClose={handleCloseApplyJob} />
-      </div>
-    );
+  // Don't render if not mounted to prevent hydration issues
+  if (!isMountedRef.current) {
+    return null;
   }
 
   return (
     <div
       className={`
-        fixed inset-y-0 left-0 
+        fixed inset-y-0 left-0 hide-scrollbar
         ${isMobile ? 'overflow-y-auto' : 'overflow-hidden'}
         w-64 bg-white border-r border-gray-200
         transform transition-transform duration-300 z-30 ease-in-out
@@ -210,18 +364,6 @@ const Sidebar = ({
           </button>
         </li>
 
-        {settings?.isApplyJob && (
-          <li>
-            <button
-              onClick={() => handleNavigation("/apply-job")}
-              style={{ color: "rgb(2 132 218)" }}
-              className="w-full font-medium text-sm p-1 rounded-lg text-left hover:bg-blue-50 transition-colors"
-            >
-              Apply Job
-            </button>
-          </li>
-        )}
-
         {settings?.isPostJob && (
           <li>
             <button
@@ -262,52 +404,94 @@ const Sidebar = ({
         <p className={`my-2 text-center text-gray-500 ${!isMobile ? 'flex-shrink-0' : ''}`}>No Result found</p>
       )}
 
-      {/* Categories Section - Show top 4 programs on desktop, full list on mobile */}
-      <div className={`${!isMobile ? 'flex-shrink-0' : ''}`}>
-        {!isMobile ? (
-          <div className="px-4">
-            {programs.slice(0, 4).map((program) => (
-              <div
-                key={program.id}
-                onClick={() => onSelectProgram(program)}
-                className="py-2 px-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 hover:text-blue-600 transition-colors"
+      {/* Categories Section - IMPROVED: Better sizing like the reference site */}
+      <div className={`${!isMobile ? 'flex-1 min-h-0 flex flex-col' : ''}`}>
+        <div className={`${!isMobile ? 'flex-1 overflow-y-auto px-4 hide-scrollbar' : ''}`}>
+          {!isMobile ? (
+            <div className="py-2">
+              {filteredCategories.map((category) => {
+                const isExpanded = Array.isArray(expandedCategories) && expandedCategories.includes(category.name);
+                const categoryProgramsList = getFilteredProgramsForCategory(category.name);
+
+                return (
+                  <div key={category.id || category._id} className="mb-1">
+                    {/* Category Header */}
+                    <button
+                      onClick={() => toggleCategory(category.name)}
+                      className="w-full flex items-center justify-between py-2 px-2 hover:bg-gray-50 rounded transition-colors"
+                    >
+                      <span className="text-md font-medium text-gray-700 font-bold">
+                        {category.name}
+                      </span>
+                      {isExpanded ? (
+                        <ChevronDown className="w-3 h-3 text-gray-400" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3 text-gray-400" />
+                      )}
+                    </button>
+
+                    {/* Programs Dropdown - IMPROVED: Better sizing and layout with moderate height increase */}
+                    {isExpanded && (
+                      <div className="ml-3 space-y-1 max-h-60 overflow-y-auto hide-scrollbar border-l border-gray-100 pl-2">
+                        {categoryProgramsList.length > 0 ? (
+                          categoryProgramsList.map((program) => (
+                            <button
+                              onClick={() => onSelectProgram(program)}
+                              className="w-full text-left py-2 px-3 hover:bg-blue-50 rounded text-sm text-gray-600 hover:text-blue-600 transition-colors border-b border-gray-50 last:border-b-0"
+                              title={program.name || 'Untitled'}
+                            >
+                              <div className="truncate">
+                                {program.name || 'Untitled'}
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="py-2 px-3 text-xs text-gray-400">No programs found</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <Category
+              expandedCategories={Array.isArray(expandedCategories) ? expandedCategories : []}
+              toggleCategory={toggleCategory}
+              onSelectProgram={onSelectProgram}
+              searchQuery={searchQuery}
+              setProgramNotFound={setProgramNotFound}
+            />
+          )}
+        </div>
+
+        {/* Bottom section moved inside categories container to utilize remaining space */}
+        {!isMobile && (
+          <div className="flex-shrink-0 px-4">
+            <div className="flex justify-center py-2">
+              <button
+                onClick={() => handleNavigation("/categories")}
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 text-[#0284DA] bg-white hover:text-[#0284FF] hover:bg-blue-50 transition-colors"
               >
-                {program.name}
+                View All Programs
+              </button>
+            </div>
+            <div className="border-t border-gray-200 pt-2 flex flex-col gap-y-2 pb-4">
+              <div className="flex-shrink-0">
+                <DailyQuiz router={router} />
               </div>
-            ))}
+              {settings?.isJobs && settings?.isPostJob && (
+                <div className="flex-shrink-0">
+                  <Articles 
+                    onShowJobPosting={onShowJobPosting} 
+                    onShowApplyJob={onShowApplyJob} 
+                  />
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          <Category
-            expandedCategories={expandedCategories}
-            toggleCategory={toggleCategory}
-            onSelectProgram={onSelectProgram}
-            searchQuery={searchQuery}
-            setProgramNotFound={setProgramNotFound}
-          />
         )}
       </div>
-
-      {!isMobile && (
-        <div className="flex-shrink-0">
-          <div className="flex justify-center py-2">
-            <button
-              onClick={() => handleNavigation("/categories")}
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 text-[#0284DA] bg-white hover:text-[#0284FF] hover:bg-blue-50 transition-colors"
-            >
-              View All Programs
-            </button>
-          </div>
-          <div className="border-t border-gray-200 px-4 pt-2 flex flex-col gap-y-[11px] pb-4">
-            <DailyQuiz router={router} />
-            {settings?.isJobs && (settings?.isPostJob || settings?.isApplyJob) && (
-              <Articles 
-                onShowJobPosting={handlePostJobClick} 
-                onShowApplyJob={handleApplyJobClick} 
-              />
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchJobs } from "@/store/reducers/jobSlice";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 
 interface ArticlesProps {
   onShowJobPosting: () => void;
@@ -47,4 +47,4 @@ const Articles = ({ onShowJobPosting, onShowApplyJob, router }: ArticlesProps) =
   );
 };
 
-export default Articles; 
+export default Articles;

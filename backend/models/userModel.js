@@ -12,7 +12,28 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true,
+    required: false, // Not required for OAuth users
+  },
+  // OAuth provider information
+  provider: {
+    type: String,
+    enum: ["google", "linkedin", "credentials"],
+    default: "credentials"
+  },
+  providerId: {
+    type: String,
+    sparse: true // Allows multiple null values
+  },
+  // OTP fields
+  otpCode: {
+    type: String,
+  },
+  otpExpiry: {
+    type: Date,
+  },
+  isOtpVerified: {
+    type: Boolean,
+    default: false
   },
   country: {
     type: String,

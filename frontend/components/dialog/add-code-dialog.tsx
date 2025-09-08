@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { savedContributions } from "@/store/reducers/contributionSlice";
@@ -46,7 +46,7 @@ const AddCodeDialog = ({ onOpenChange, open }: AddCodeDialogProps) => {
   useEffect(() => {
     if (open && !isAuthenticated) {
       // onOpenChange(false);
-      // router.push("/userauth");
+      // router.push("/login");
     }
 
     if (isAuthenticated && user?.id) {

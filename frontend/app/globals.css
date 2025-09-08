@@ -15,7 +15,30 @@
     --background-end-rgb: 0, 0, 0;
   }
 }
+/* Hide scrollbars */
+.shiki::-webkit-scrollbar {
+  display: none;
+}
 
+.shiki {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Force white text in code blocks */
+.shiki * {
+  color: white !important;
+}
+
+/* ScrollArea scrollbar hiding */
+[data-radix-scroll-area-viewport] {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none !important;
+}
 @layer base {
   :root {
     --background: 0 0% 100%;

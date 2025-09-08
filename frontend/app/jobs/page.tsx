@@ -2,18 +2,9 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-  ChevronDown,
-  ChevronRight,
-  ChevronLeft,
-  MapPin,
-  DollarSign,
-  CalendarDays,
-  Users,
-  Trophy,
-  ChevronUp,
-  RefreshCw,
-  Search,
-  Filter,
+  ChevronDown, ChevronRight, ChevronLeft, MapPin, DollarSign, CalendarDays,
+  Users, Trophy, ChevronUp, RefreshCw, Search, Filter, Globe, Crosshair,
+  AlertCircle, Clock, Building, Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Footer from "@/components/layout/footer";
@@ -27,8 +18,9 @@ import { useMediaQuery } from "react-responsive";
 import { Program } from "@/types";
 import { toast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { calculateDistance, isWithinRadius } from "@/lib/geo";
 
-export default function Jobs() {
+export default function EnhancedJobs() {
   const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const dispatch = useAppDispatch();
@@ -40,13 +32,20 @@ export default function Jobs() {
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCompany, setSelectedCompany] = useState("");
   const [selectedLocation, setSelectedLocation] = useState("");
+  const [selectedJobType, setSelectedJobType] = useState("");
+  const [selectedExperience, setSelectedExperience] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState("newest");
   
   const { items, loading, error } = useAppSelector((state) => state.jobs);
   const recruiterItems = useAppSelector((state) => state.recruiters);
+  
+  // Enhanced geo state
+  const { geoMode, userLocation, radiusKm, loading: geoLoading, error: geoError } = useAppSelector((state) => state.geo);
 
   const [expandedJobs, setExpandedJobs] = useState<(string | number)[]>([]);
   
@@ -65,17 +64,20 @@ export default function Jobs() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await dispatch(fetchJobs()).unwrap();
+      await Promise.all([
+        dispatch(fetchJobs()).unwrap(),
+        dispatch(fetchRecruiters()).unwrap()
+      ]);
       toast({
         title: "Success",
-        description: "Jobs refreshed successfully",
+        description: "Jobs and recruiters refreshed successfully",
         variant: "success",
       });
     } catch (err) {
       console.error("Refresh failed", err);
       toast({
-        title: "Error",
-        description: "Failed to refresh jobs",
+        title: "Error", 
+        description: "Failed to refresh data",
         variant: "destructive",
       });
     } finally {
@@ -83,74 +85,153 @@ export default function Jobs() {
     }
   };
 
+  // Initial data load
   useEffect(() => {
     if (isMounted) {
-      dispatch(fetchJobs()).catch((err) => console.error("Fetch failed", err));
+      const geoParams = geoMode && userLocation && userLocation.latitude ? {
+        geoMode: true,
+        lat: userLocation.latitude,
+        lng: userLocation.longitude,
+        radius: radiusKm,
+        userCountry: userLocation.country,
+        userCity: userLocation.city
+      } : null;
+
+      dispatch(fetchJobs(geoParams)).catch((err) => console.error("Fetch jobs failed", err));
       dispatch(fetchRecruiters()).catch((err) => console.error("Fetch recruiters failed", err));
     }
   }, [dispatch, isMounted]);
 
-  const companies = useMemo(() => {
-    if (!items || items.length === 0) return [];
-    return Array.from(new Set(items.map((job) => job.company).filter(Boolean))).sort();
+  // Extract unique filter options
+  const filterOptions = useMemo(() => {
+    if (!items || items.length === 0) return { companies: [], locations: [], jobTypes: [], experiences: [] };
+    
+    return {
+      companies: Array.from(new Set(items.map((job) => job.company).filter(Boolean))).sort(),
+      locations: Array.from(new Set(items.map((job) => job.jobLocation).filter(Boolean))).sort(),
+      jobTypes: Array.from(new Set(items.map((job) => job.jobType).filter(Boolean))).sort(),
+      experiences: Array.from(new Set(items.map((job) => job.experienceLevel).filter(Boolean))).sort()
+    };
   }, [items]);
 
-  const locations = useMemo(() => {
-    if (!items || items.length === 0) return [];
-    return Array.from(new Set(items.map((job) => job.jobLocation).filter(Boolean))).sort();
-  }, [items]);
-
-  const filteredJobs = useMemo(() => {
+  // Enhanced filtering with distance calculation
+  const filteredAndSortedJobs = useMemo(() => {
     if (!items || items.length === 0) return [];
     
-    return items.filter((job) => {
+    let filtered = items.filter((job) => {
       if (!job) return false;
       
+      // Basic text filtering
       const matchesSearch =
         searchTerm === "" ||
         (job.title && job.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (job.description && job.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (job.company && job.company.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      const matchesCompany =
-        selectedCompany === "" || job.company === selectedCompany;
+      const matchesCompany = selectedCompany === "" || job.company === selectedCompany;
+      const matchesLocation = selectedLocation === "" || job.jobLocation === selectedLocation;
+      const matchesJobType = selectedJobType === "" || job.jobType === selectedJobType;
+      const matchesExperience = selectedExperience === "" || job.experienceLevel === selectedExperience;
       
-      const matchesLocation =
-        selectedLocation === "" || job.jobLocation === selectedLocation;
+      // Enhanced geo filtering
+      let matchesGeo = true;
       
-      return matchesSearch && matchesCompany && matchesLocation;
+      if (geoMode && userLocation && userLocation.latitude && userLocation.longitude && userLocation.country !== 'Unknown') {
+        // Prioritize remote jobs (always show these)
+        if (job.remoteWork) {
+          matchesGeo = true;
+        }
+        // Use coordinate-based distance if available
+        else if (job.latitude && job.longitude) {
+          matchesGeo = isWithinRadius(
+            userLocation.latitude,
+            userLocation.longitude,
+            job.latitude,
+            job.longitude,
+            radiusKm
+          );
+        }
+        // Text-based location matching as fallback
+        else {
+          const countryMatch = job.country?.toLowerCase() === userLocation.country.toLowerCase() ||
+                             job.countryCode?.toLowerCase() === userLocation.countryCode.toLowerCase();
+          const regionMatch = job.region?.toLowerCase() === userLocation.region.toLowerCase();
+          const cityMatch = job.city?.toLowerCase() === userLocation.city.toLowerCase();
+          
+          // More lenient matching for text-based locations
+          matchesGeo = countryMatch || regionMatch || cityMatch ||
+                      (job.jobLocation && userLocation.country !== 'Unknown' && 
+                       job.jobLocation.toLowerCase().includes(userLocation.country.toLowerCase())) ||
+                      (job.jobLocation && userLocation.city !== 'Unknown' &&
+                       job.jobLocation.toLowerCase().includes(userLocation.city.toLowerCase()));
+        }
+      }
+      
+      return matchesSearch && matchesCompany && matchesLocation && 
+             matchesJobType && matchesExperience && matchesGeo;
     });
-  }, [items, searchTerm, selectedCompany, selectedLocation]);
 
-  // Responsive page size - fewer jobs per page for mobile
+    // Sort jobs
+    filtered = [...filtered].sort((a, b) => {
+  switch (sortBy) {
+    case "newest":
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    case "deadline":
+      return new Date(a.deadline || 0).getTime() - new Date(b.deadline || 0).getTime();
+    case "company":
+      return (a.company || "").localeCompare(b.company || "");
+    case "distance":
+      if (!geoMode || !userLocation?.latitude || !userLocation?.longitude) return 0;
+      const distanceA = a.latitude && a.longitude
+        ? calculateDistance(userLocation.latitude, userLocation.longitude, a.latitude, a.longitude)
+        : 999999;
+      const distanceB = b.latitude && b.longitude
+        ? calculateDistance(userLocation.latitude, userLocation.longitude, b.latitude, b.longitude)
+        : 999999;
+      return distanceA - distanceB;
+    default:
+      return 0;
+  }
+});
+
+    return filtered;
+  }, [items, searchTerm, selectedCompany, selectedLocation, selectedJobType, 
+      selectedExperience, geoMode, userLocation, radiusKm, sortBy]);
+
+  // Enhanced recruiter filtering
+  const filteredRecruiters = useMemo(() => {
+    let recruiters = recruiterItems.items || [];
+    
+    
+    
+    return [...recruiters].sort((a, b) => (b.contributions || 0) - (a.contributions || 0));
+  }, [recruiterItems.items, geoMode, userLocation, radiusKm]);
+
   const pageSize = isMobile ? 1 : isTablet ? 2 : 2;
-  const paginatedJobs = filteredJobs.slice((page - 1) * pageSize, page * pageSize);
-  const totalPages = Math.ceil(filteredJobs.length / pageSize);
+  const paginatedJobs = filteredAndSortedJobs.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.ceil(filteredAndSortedJobs.length / pageSize);
 
   const clearFilters = () => {
     setSearchTerm("");
     setSelectedCompany("");
     setSelectedLocation("");
+    setSelectedJobType("");
+    setSelectedExperience("");
+    setSortBy("newest");
     setPage(1);
   };
 
-  const handleApplyJob = (job) => {
-    // Navigate to apply-job page with job title and ID as query params
+  const handleApplyJob = (job: any) => {
     const jobTitle = encodeURIComponent(job?.title || '');
     const jobId = job?._id || '';
     router.push(`/apply-job?jobTitle=${jobTitle}&jobId=${jobId}`);
   };
 
-  const filteredRecruiters =
-    selectedLocation === ""
-      ? recruiterItems.items
-      : recruiterItems.items?.filter((c) => c.country === selectedLocation) || [];
-
-  let onSelectProgram = (program: Program) => {
+  const onSelectProgram = (program: Program) => {
     window.location.assign(`/?programId=${program._id}`);
   };
 
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: any) => {
     if (!dateString) return "No deadline";
     try {
       return format(new Date(dateString), "MMM dd, yyyy");
@@ -160,7 +241,7 @@ export default function Jobs() {
     }
   };
 
-  const isExpired = (dateString) => {
+  const isExpired = (dateString: any) => {
     if (!dateString) return false;
     try {
       return new Date(dateString) < new Date();
@@ -169,7 +250,35 @@ export default function Jobs() {
     }
   };
 
-  // Don't render until mounted to prevent hydration mismatch
+  const getCountryFlag = (countryCode: string) => {
+    if (!countryCode || countryCode === 'XX') return '🌍';
+    const flagEmojis: { [key: string]: string } = {
+      'IN': '🇮🇳', 'US': '🇺🇸', 'GB': '🇬🇧', 'CA': '🇨🇦', 'AU': '🇦🇺',
+      'DE': '🇩🇪', 'FR': '🇫🇷', 'JP': '🇯🇵', 'CN': '🇨🇳', 'BR': '🇧🇷',
+      'SG': '🇸🇬', 'NL': '🇳🇱', 'SE': '🇸🇪', 'NO': '🇳🇴', 'DK': '🇩🇰',
+    };
+    return flagEmojis[countryCode.toUpperCase()] || '🌍';
+  };
+
+  const getJobDistance = (job: any) => {
+    if (!geoMode || !userLocation || !userLocation.latitude || !userLocation.longitude) return null;
+    if (!job.latitude || !job.longitude) return null;
+    
+    const distance = calculateDistance(
+      userLocation.latitude,
+      userLocation.longitude,
+      job.latitude,
+      job.longitude
+    );
+    
+    return Math.round(distance);
+  };
+
+  const isLocationValid = userLocation && 
+                         userLocation.country !== 'Unknown' && 
+                         userLocation.latitude !== 0 && 
+                         userLocation.longitude !== 0;
+
   if (!isMounted) {
     return (
       <div className="min-h-screen bg-[#F5F5F5] flex items-center justify-center">
@@ -192,7 +301,6 @@ export default function Jobs() {
         />
       )}
 
-      {/* Fixed height container to prevent overflow */}
       <div className="pt-12 sm:pt-16 flex-1 flex flex-col h-[calc(100vh-3rem)] sm:h-[calc(100vh-4rem)]">
         <div className="flex flex-col lg:flex-row flex-1 min-h-0">
           {/* Desktop Sidebar */}
@@ -204,7 +312,7 @@ export default function Jobs() {
                 </h2>
                 <ol className="space-y-2">
                   {filteredRecruiters?.slice(0, 15).map((recruiter, index) => (
-                    <li key={index} className="flex items-center space-x-2">
+                    <li key={recruiter._id || index} className="flex items-center space-x-2">
                       <div className="w-6 h-6 bg-blue-100 text-blue-600 text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
                         {index + 1}
                       </div>
@@ -228,9 +336,23 @@ export default function Jobs() {
               <div className="mb-3 flex justify-between items-start flex-shrink-0">
                 <div>
                   <h1 className="text-lg sm:text-xl font-bold mb-1">Job Opportunities</h1>
-                  <p className="text-gray-600 text-xs sm:text-sm">
-                    Find your next role in tech • {filteredJobs.length} jobs available
-                  </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                    <p className="text-gray-600 text-xs sm:text-sm">
+                      {geoMode && isLocationValid ? (
+                        <span className="flex items-center">
+                          <Crosshair className="w-3 h-3 mr-1" />
+                          Within {radiusKm}km of {userLocation.city !== 'Unknown' ? userLocation.city : userLocation.region}, {userLocation.countryCode} {getCountryFlag(userLocation.countryCode)} • {filteredAndSortedJobs.length} jobs
+                        </span>
+                      ) : geoMode && (geoLoading || !isLocationValid) ? (
+                        <span className="flex items-center">
+                          <Globe className="w-3 h-3 mr-1 animate-pulse" />
+                          {geoLoading ? 'Detecting your location...' : 'Location detection failed'}
+                        </span>
+                      ) : (
+                        `Showing all jobs globally • ${filteredAndSortedJobs.length} jobs available`
+                      )}
+                    </p>
+                  </div>
                 </div>
                 <Button
                   onClick={handleRefresh}
@@ -244,7 +366,28 @@ export default function Jobs() {
                 </Button>
               </div>
 
-              {/* Search and Filter Toggle */}
+              {/* Enhanced Status Messages */}
+              {geoMode && geoError && (
+                <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex-shrink-0">
+                  <div className="flex items-center">
+                    <AlertCircle className="w-4 h-4 text-red-600 mr-2" />
+                    <p className="text-red-700 text-sm">
+                      Location detection failed: {geoError}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {geoMode && isLocationValid && (
+                <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg flex-shrink-0">
+                  <p className="text-green-700 text-sm flex items-center">
+                    <Globe className="w-4 h-4 mr-2" />
+                    Location filter active: Showing content within {radiusKm}km of {userLocation.city !== 'Unknown' ? userLocation.city : userLocation.region}, {userLocation.countryCode} {getCountryFlag(userLocation.countryCode)}
+                  </p>
+                </div>
+              )}
+
+              {/* Search and Enhanced Filter Section */}
               <div className="mb-3 flex flex-col sm:flex-row gap-2 flex-shrink-0">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -256,6 +399,19 @@ export default function Jobs() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
+                
+                {/* Sort Dropdown */}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="deadline">Deadline</option>
+                  <option value="company">Company A-Z</option>
+                  {geoMode && isLocationValid && <option value="distance">Distance</option>}
+                </select>
+                
                 <Button
                   variant="outline"
                   onClick={() => setShowFilters(!showFilters)}
@@ -267,10 +423,10 @@ export default function Jobs() {
                 </Button>
               </div>
 
-              {/* Collapsible Filters */}
+              {/* Collapsible Enhanced Filters */}
               {showFilters && (
                 <div className="mb-3 p-3 bg-white rounded-lg border space-y-3 flex-shrink-0">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
                       <select
@@ -279,7 +435,7 @@ export default function Jobs() {
                         onChange={(e) => setSelectedLocation(e.target.value)}
                       >
                         <option value="">All Locations</option>
-                        {locations.map((loc) => (
+                        {filterOptions.locations.map((loc) => (
                           <option key={loc} value={loc}>{loc}</option>
                         ))}
                       </select>
@@ -292,20 +448,46 @@ export default function Jobs() {
                         onChange={(e) => setSelectedCompany(e.target.value)}
                       >
                         <option value="">All Companies</option>
-                        {companies.map((comp) => (
+                        {filterOptions.companies.map((comp) => (
                           <option key={comp} value={comp}>{comp}</option>
                         ))}
                       </select>
                     </div>
-                    <div className="flex items-end">
-                      <Button 
-                        variant="outline" 
-                        onClick={clearFilters} 
-                        className="text-sm px-4 py-2 w-full"
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Job Type</label>
+                      <select
+                        className="border rounded px-3 py-2 text-sm w-full appearance-none bg-white"
+                        value={selectedJobType}
+                        onChange={(e) => setSelectedJobType(e.target.value)}
                       >
-                        Clear Filters
-                      </Button>
+                        <option value="">All Types</option>
+                        {filterOptions.jobTypes.map((type) => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
                     </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Experience</label>
+                      <select
+                        className="border rounded px-3 py-2 text-sm w-full appearance-none bg-white"
+                        value={selectedExperience}
+                        onChange={(e) => setSelectedExperience(e.target.value)}
+                      >
+                        <option value="">All Levels</option>
+                        {filterOptions.experiences.map((exp) => (
+                          <option key={exp} value={exp}>{exp}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button 
+                      variant="outline" 
+                      onClick={clearFilters} 
+                      className="text-sm px-4 py-2"
+                    >
+                      Clear All Filters
+                    </Button>
                   </div>
                 </div>
               )}
@@ -341,7 +523,7 @@ export default function Jobs() {
 
                 {/* Scrollable jobs container */}
                 <div className="flex-1 overflow-y-auto">
-                  {/* Loader / Error */}
+                  {/* Loading State */}
                   {loading && (
                     <div className="text-center text-gray-600 py-8">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
@@ -349,6 +531,7 @@ export default function Jobs() {
                     </div>
                   )}
 
+                  {/* Error State */}
                   {error && (
                     <div className="text-center text-red-600 py-6 bg-red-50 rounded-lg border border-red-200">
                       <p className="text-sm font-medium">Error loading jobs</p>
@@ -359,139 +542,181 @@ export default function Jobs() {
                     </div>
                   )}
 
-                  {!loading && filteredJobs.length === 0 && (
+                  {/* No jobs found message with geo context */}
+                  {!loading && filteredAndSortedJobs.length === 0 && (
                     <div className="text-center text-gray-600 py-8">
                       <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                        <Search className="w-8 h-8 text-gray-400" />
+                        {geoMode ? <Crosshair className="w-8 h-8 text-gray-400" /> : <Search className="w-8 h-8 text-gray-400" />}
                       </div>
-                      <p className="text-sm font-medium">No jobs found</p>
+                      <p className="text-sm font-medium">
+                        {geoMode && isLocationValid 
+                          ? `No jobs available within ${radiusKm}km of your location`
+                          : "No jobs found"
+                        }
+                      </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {searchTerm || selectedCompany || selectedLocation
+                        {geoMode && isLocationValid
+                          ? "Try increasing your search radius or switching to global view"
+                          : searchTerm || selectedCompany || selectedLocation
                           ? "Try adjusting your filters or search terms"
-                          : "Check back later for new opportunities"}
+                          : "Check back later for new opportunities"
+                        }
                       </p>
                     </div>
                   )}
 
-                  {/* Jobs List */}
+                  {/* Enhanced Jobs List */}
                   <div className="space-y-4 pb-4">
-                    {paginatedJobs.map((job, index) => (
-                      <div
-                        key={job?._id || index}
-                        className="border rounded-lg p-4 shadow-sm bg-white hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          {/* Logo */}
-                          <div className="flex flex-col items-center sm:items-start gap-2 w-full sm:w-16">
-                            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                              {job?.recruiter?.companyLogo ? (
-                                <img 
-                                  src={job.recruiter.companyLogo} 
-                                  alt={job?.company} 
-                                  className="w-full h-full object-cover rounded-lg"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 bg-blue-500 text-white rounded text-sm font-bold flex items-center justify-center">
-                                  {job?.company?.charAt(0) || 'J'}
+                    {paginatedJobs.map((job, index) => {
+                      const distance = getJobDistance(job);
+                      const actualIndex = (page - 1) * pageSize + index;
+                      
+                      return (
+                        <div
+                          key={job?._id || actualIndex}
+                          className="border rounded-lg p-4 shadow-sm bg-white hover:shadow-md transition-shadow"
+                        >
+                          <div className="flex flex-col sm:flex-row gap-4">
+                            {/* Enhanced Logo Section */}
+                            <div className="flex flex-col items-center sm:items-start gap-2 w-full sm:w-16">
+                              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                                {job?.recruiter?.companyLogo ? (
+                                  <img 
+                                    src={job.recruiter.companyLogo} 
+                                    alt={job?.company} 
+                                    className="w-full h-full object-cover rounded-lg"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 bg-blue-500 text-white rounded text-sm font-bold flex items-center justify-center">
+                                    {job?.company?.charAt(0) || 'J'}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-center sm:text-left">
+                                <div className="text-xs font-semibold break-words max-w-[60px]">
+                                  {job?.company && job.company.length > 8
+                                    ? `${job.company.substring(0, 8)}...`
+                                    : job?.company || 'Company'}
                                 </div>
-                              )}
-                            </div>
-                            <div className="text-center sm:text-left">
-                              <div className="text-xs font-semibold break-words max-w-[60px]">
-                                {job?.company && job.company.length > 8
-                                  ? `${job.company.substring(0, 8)}...`
-                                  : job?.company || 'Company'}
+                                {distance && (
+                                  <div className="text-xs text-blue-600 font-medium">
+                                    {distance}km away
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          </div>
 
-                          {/* Details */}
-                          <div className="flex-1 flex flex-col">
-                            <div className="flex justify-between items-start mb-2">
-                              <div className="flex-1">
-                                <h2 className="text-base font-semibold text-gray-900 mb-1">
-                                  {job?.title || 'Job Title'}
-                                </h2>
-                                <div className="flex flex-wrap gap-2 text-xs">
-                                  <span className="flex items-center px-2 py-1 rounded-full border bg-gray-50 text-gray-700">
-                                    <MapPin className="w-3 h-3 mr-1" /> 
-                                    {job?.jobLocation || 'Location not specified'}
-                                  </span>
-                                  {job?.salary && (
+                            {/* Enhanced Details */}
+                            <div className="flex-1 flex flex-col">
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex-1">
+                                  <h2 className="text-base font-semibold text-gray-900 mb-1">
+                                    {job?.title || 'Job Title'}
+                                  </h2>
+                                  <div className="flex flex-wrap gap-2 text-xs">
                                     <span className="flex items-center px-2 py-1 rounded-full border bg-gray-50 text-gray-700">
-                                      <DollarSign className="w-3 h-3 mr-1" /> {job.salary}
+                                      <MapPin className="w-3 h-3 mr-1" /> 
+                                      {job?.jobLocation || 'Location not specified'}
                                     </span>
-                                  )}
-                                  <span className="flex items-center px-2 py-1 rounded-full border bg-gray-50 text-gray-700">
-                                    <CalendarDays className="w-3 h-3 mr-1" />
-                                    {formatDate(job?.deadline)}
-                                  </span>
+                                    {job?.salary && (
+                                      <span className="flex items-center px-2 py-1 rounded-full border bg-gray-50 text-gray-700">
+                                        <DollarSign className="w-3 h-3 mr-1" /> {job.salary}
+                                      </span>
+                                    )}
+                                    <span className="flex items-center px-2 py-1 rounded-full border bg-gray-50 text-gray-700">
+                                      <CalendarDays className="w-3 h-3 mr-1" />
+                                      {formatDate(job?.deadline)}
+                                    </span>
+                                    {job?.jobType && (
+                                      <span className="flex items-center px-2 py-1 rounded-full border bg-blue-50 text-blue-700">
+                                        <Building className="w-3 h-3 mr-1" /> {job.jobType}
+                                      </span>
+                                    )}
+                                    {job?.remoteWork && (
+                                      <span className="flex items-center px-2 py-1 rounded-full border bg-purple-50 text-purple-700">
+                                        <Globe className="w-3 h-3 mr-1" /> Remote
+                                      </span>
+                                    )}
+                                    {geoMode && isLocationValid && !job?.remoteWork && (
+                                      <span className="flex items-center px-2 py-1 rounded-full border bg-green-50 text-green-700">
+                                        {getCountryFlag(job?.countryCode || userLocation.countryCode)} Local
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                              
-                              {/* Status Badge */}
-                              {isExpired(job?.deadline) ? (
-                                <span className="bg-red-100 text-red-600 text-xs font-semibold px-2 py-1 rounded-full">
-                                  Expired
-                                </span>
-                              ) : (
-                                <span className="bg-green-100 text-green-600 text-xs font-semibold px-2 py-1 rounded-full">
-                                  Active
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="mt-2 mb-3">
-                              <p className="text-gray-700 text-sm leading-relaxed">
-                                {expandedJobs.includes(index)
-                                  ? job?.description || 'No description available'
-                                  : job?.description && job.description.length > 120
-                                  ? `${job.description.slice(0, 120)}...`
-                                  : job?.description || 'No description available'}
-                              </p>
-                              
-                              {job?.description && job.description.length > 120 && (
-                                <button
-                                  className="text-blue-600 text-xs flex items-center gap-1 hover:underline mt-1"
-                                  onClick={() => toggleJobDescription(index)}
-                                >
-                                  {expandedJobs.includes(index) ? (
-                                    <>
-                                      <ChevronUp className="w-3 h-3" /> Show Less
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChevronDown className="w-3 h-3" /> Show More
-                                    </>
-                                  )}
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Job Actions */}
-                            <div className="flex justify-between items-center mt-auto">
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span>Posted: {formatDate(job?.createdAt)}</span>
-                                {job?.isPinned && (
-                                  <span className="bg-yellow-100 text-yellow-600 px-2 py-1 rounded-full text-xs font-medium">
+                                
+                                {/* Enhanced Status Badge */}
+                                {isExpired(job?.deadline) ? (
+                                  <span className="bg-red-100 text-red-600 text-xs font-semibold px-2 py-1 rounded-full">
+                                    Expired
+                                  </span>
+                                ) : job?.isPinned ? (
+                                  <span className="bg-yellow-100 text-yellow-600 text-xs font-semibold px-2 py-1 rounded-full">
                                     Featured
+                                  </span>
+                                ) : (
+                                  <span className="bg-green-100 text-green-600 text-xs font-semibold px-2 py-1 rounded-full">
+                                    Active
                                   </span>
                                 )}
                               </div>
-                              
-                              <Button
-                                onClick={() => handleApplyJob(job)}
-                                className="bg-blue-500 hover:bg-blue-700 text-white text-sm px-4 py-2"
-                                size="sm"
-                                disabled={isExpired(job?.deadline)}
-                              >
-                                {isExpired(job?.deadline) ? "Expired" : "Apply Now"}
-                              </Button>
+
+                              {/* Enhanced Description */}
+                              <div className="mt-2 mb-3">
+                                <p className="text-gray-700 text-sm leading-relaxed">
+                                  {expandedJobs.includes(actualIndex)
+                                    ? job?.description || 'No description available'
+                                    : job?.description && job.description.length > 150
+                                    ? `${job.description.slice(0, 150)}...`
+                                    : job?.description || 'No description available'}
+                                </p>
+                                
+                                {job?.description && job.description.length > 150 && (
+                                  <button
+                                    className="text-blue-600 text-xs flex items-center gap-1 hover:underline mt-1"
+                                    onClick={() => toggleJobDescription(actualIndex)}
+                                  >
+                                    {expandedJobs.includes(actualIndex) ? (
+                                      <>
+                                        <ChevronUp className="w-3 h-3" /> Show Less
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronDown className="w-3 h-3" /> Show More
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Enhanced Job Actions */}
+                              <div className="flex justify-between items-center mt-auto">
+                                <div className="flex items-center gap-3 text-xs text-gray-500">
+                                  <span className="flex items-center">
+                                    <Clock className="w-3 h-3 mr-1" />
+                                    Posted: {formatDate(job?.createdAt)}
+                                  </span>
+                                  {job?.experienceLevel && (
+                                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                                      {job.experienceLevel}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <Button
+                                  onClick={() => handleApplyJob(job)}
+                                  className="bg-blue-500 hover:bg-blue-700 text-white text-sm px-4 py-2"
+                                  size="sm"
+                                  disabled={isExpired(job?.deadline)}
+                                >
+                                  {isExpired(job?.deadline) ? "Expired" : "Apply Now"}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -499,7 +724,7 @@ export default function Jobs() {
           </main>
         </div>
 
-        {/* Recruiters (Mobile/Tablet Bottom) */}
+        {/* Mobile/Tablet Bottom Recruiters */}
         {(isMobile || isTablet) && !loading && (
           <div className="bg-white border-t px-4 py-3 flex-shrink-0">
             <h3 className="text-sm font-semibold flex items-center mb-3">
@@ -507,12 +732,15 @@ export default function Jobs() {
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {filteredRecruiters?.slice(0, 6).map((recruiter, index) => (
-                <div key={index} className="flex items-center space-x-2 p-2 bg-gray-50 rounded text-xs">
+                <div key={recruiter._id || index} className="flex items-center space-x-2 p-2 bg-gray-50 rounded text-xs">
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 text-xs font-bold rounded-full flex items-center justify-center">
                     {index + 1}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{recruiter?.name}</p>
+                    <p className="text-xs text-gray-500">
+                      <Users className="w-3 h-3 inline mr-1" /> {recruiter?.contributions || 0}
+                    </p>
                   </div>
                 </div>
               ))}

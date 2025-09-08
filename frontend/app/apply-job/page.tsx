@@ -10,7 +10,7 @@ import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import Sidebar from "@/components/layout/sidebar";
 import { useMediaQuery } from "react-responsive";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import ftpapi from "@/lib/ftpapi";
 import { formatDate } from "date-fns";
@@ -49,6 +49,7 @@ export default function ApplyJobPage() {
   const [isLoadingDraft, setIsLoadingDraft] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(false); // Start with auto-save disabled
 
   const { user, isAuthenticated } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,25 +100,28 @@ export default function ApplyJobPage() {
     }
   }, [isMounted, searchParams, jobs]);
 
-  // Auto-save draft when form data changes (with debounce)
+  // Auto-save draft when form data changes (with debounce) - ONLY if enabled
   useEffect(() => {
-    if (!hasFormData || !isMounted) return;
+    if (!hasFormData || !isMounted || !autoSaveEnabled) return;
 
     const timeoutId = setTimeout(() => {
-      if (hasFormData) {
+      if (hasFormData && autoSaveEnabled) {
         saveDraftSilently();
       }
-    }, 2000); // Auto-save after 2 seconds of inactivity
+    }, 5000); // Increased from 2 seconds to 5 seconds
 
     return () => clearTimeout(timeoutId);
-  }, [selectedJob, coverLetter, uploadedFile?.name, hasFormData, isMounted]);
+  }, [selectedJob, coverLetter, uploadedFile?.name, hasFormData, isMounted, autoSaveEnabled]);
 
   const checkForExistingDraft = () => {
     try {
-      const savedDraft = (window as any).jobApplicationDraft;
-      if (savedDraft && savedDraft.timestamp) {
-        setHasDraft(true);
-        setLastSavedTime(new Date(savedDraft.timestamp));
+      const savedDraft = localStorage.getItem('jobApplicationDraft');
+      if (savedDraft) {
+        const draftData = JSON.parse(savedDraft);
+        if (draftData && draftData.timestamp) {
+          setHasDraft(true);
+          setLastSavedTime(new Date(draftData.timestamp));
+        }
       }
     } catch (error) {
       console.error('Error checking for existing draft:', error);
@@ -135,7 +139,7 @@ export default function ApplyJobPage() {
         timestamp: Date.now(),
       };
       
-      (window as any).jobApplicationDraft = draft;
+      localStorage.setItem('jobApplicationDraft', JSON.stringify(draft));
       setHasDraft(true);
       setLastSavedTime(new Date());
     } catch (error) {
@@ -166,14 +170,13 @@ export default function ApplyJobPage() {
           timestamp: Date.now(),
         };
         
-        // Store in memory object instead of sessionStorage
-        window.jobApplicationDraft = draft;
+        localStorage.setItem('jobApplicationDraft', JSON.stringify(draft));
         setHasDraft(true);
         setLastSavedTime(new Date());
         
         toast({
           title: "Draft Saved Successfully",
-          description: "Your application has been saved in memory for this session.",
+          description: "Your application has been saved locally.",
           variant: "success",
           duration: 3000,
         });
@@ -196,11 +199,11 @@ export default function ApplyJobPage() {
     // Use setTimeout to simulate async operation and show loading state
     setTimeout(() => {
       try {
-        const savedDraft = (window as any).jobApplicationDraft;
+        const savedDraft = localStorage.getItem('jobApplicationDraft');
         if (!savedDraft) {
           toast({
             title: "No Draft Found",
-            description: "No saved draft found in current session.",
+            description: "No saved draft found.",
             variant: "default",
             duration: 2000,
           });
@@ -208,7 +211,7 @@ export default function ApplyJobPage() {
           return;
         }
 
-        const draftData: DraftData = savedDraft;
+        const draftData: DraftData = JSON.parse(savedDraft);
         
         // Load the draft data
         setSelectedJob(draftData.selectedJob || "");
@@ -239,7 +242,7 @@ export default function ApplyJobPage() {
 
   const clearDraft = () => {
     try {
-      delete (window as any).jobApplicationDraft;
+      localStorage.removeItem('jobApplicationDraft');
       setHasDraft(false);
       setLastSavedTime(null);
     } catch (error) {
@@ -365,7 +368,7 @@ export default function ApplyJobPage() {
         variant: "destructive",
         duration: 4000,
       });
-      router.push('/userauth?fromApplyJob=true');
+      router.push('/login?fromApplyJob=true');
       return;
     }
 
@@ -495,7 +498,21 @@ export default function ApplyJobPage() {
                 </p>
               </div>
               
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap items-center">
+                {/* Auto-save toggle */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="auto-save"
+                    checked={autoSaveEnabled}
+                    onChange={(e) => setAutoSaveEnabled(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <label htmlFor="auto-save" className="text-xs text-gray-600">
+                    Auto-save
+                  </label>
+                </div>
+                
                 {hasDraft && (
                   <Button
                     type="button"
@@ -582,7 +599,7 @@ export default function ApplyJobPage() {
                       placeholder="Write your cover letter here... (minimum 50 characters)"
                       maxLength={2000}
                       disabled={isSubmitting}
-                      rows={isMobile ? 3 : 4}
+                      rows={isMobile ? 6 : 6}
                       className={`w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-900 placeholder-gray-400 text-sm leading-relaxed transition-colors ${
                         errors.coverLetter ? "border-red-500 ring-2 ring-red-500" : ""
                       }`}
@@ -623,14 +640,14 @@ export default function ApplyJobPage() {
                           onClick={handleFileClick}
                           className="cursor-pointer flex flex-col items-center space-y-2 py-2"
                         >
-                          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200">
-                            <Upload className="w-5 h-5 text-blue-500" />
+                          <div className="w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-200">
+                            <Upload className="w-3 h-3 text-blue-500" />
                           </div>
                           <div className="text-gray-700">
                             <span className="text-gray-900 font-medium text-sm block">
                               Click to upload resume
                             </span>
-                            <span className="text-xs text-gray-500 mt-1 block">
+                            <span className="text-xs text-gray-500 block">
                               PDF only • Max 10MB
                             </span>
                           </div>
@@ -712,5 +729,6 @@ export default function ApplyJobPage() {
       <div className="pb-2">
         <Footer />
       </div>
-      </div>
-      )}                  
+    </div>
+  );
+}

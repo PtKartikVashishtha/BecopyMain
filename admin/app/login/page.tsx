@@ -10,7 +10,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login } =  useAuth();
   useEffect(() => {
     // If already authenticated, redirect to dashboard
     if (isAuthenticated) {

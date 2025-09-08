@@ -157,10 +157,38 @@ export const authService = {
     }
   },
 
+  async oauthAuth(data: {
+    email: string;
+    name: string;
+    provider: string;
+    providerId: string;
+    userType: 'user' | 'recruiter';
+    country: string;
+  }) {
+    try {
+      const response = await api.post("/api/auth/oauth", data);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  async verifyOTP(data: {
+    userId: string;
+    otpCode: string;
+  }) {
+    try {
+      const response = await api.post("/api/auth/verify-otp", data);
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error.message;
+    }
+  },
+
   logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('userData');
     localStorage.removeItem('userType');
     window.location.href = '/login';
   }
-}; 
+};

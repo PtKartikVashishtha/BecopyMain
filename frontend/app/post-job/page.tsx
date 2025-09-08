@@ -10,10 +10,12 @@ import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import Sidebar from "@/components/layout/sidebar";
 import { useMediaQuery } from "react-responsive";
-import { useAuth } from "@/hooks/useAuth"; // ADD THIS
+import { useAuth } from "@/context/AuthContext";
 import { useAppDispatch } from "@/store/hooks"; // ADD THIS
 import { newjob } from "@/store/reducers/jobSlice"; // ADD THIS
 import { toast } from "@/hooks/use-toast"; // ADD THIS
+import { useAppSelector} from "@/store/hooks";
+import { fetchUserLocation } from "@/store/reducers/geoSlice";
 
 // Define the Program type
 type Program = {
@@ -24,6 +26,8 @@ type Program = {
 };
 
 export default function PostJob() {
+  const { userLocation, loading: geoLoading } = useAppSelector((state) => state.geo);
+  const [locationDetected, setLocationDetected] = useState(false);
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -53,7 +57,21 @@ export default function PostJob() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
+  useEffect(() => {
+    if (isMounted && !userLocation) {
+      dispatch(fetchUserLocation());
+    } else if (userLocation && userLocation.latitude) {
+      setLocationDetected(true);
+      // Auto-fill location fields if empty
+      if (!formData.location && userLocation.city !== 'Unknown') {
+        setFormData(prev => ({
+          ...prev,
+          location: `${userLocation.city}, ${userLocation.region}`,
+          country: userLocation.country
+        }));
+      }
+    }
+  }, [dispatch, isMounted, userLocation, formData.location]);
   // Prevent hydration mismatch
   if (!isMounted) {
     return (
@@ -136,86 +154,154 @@ export default function PostJob() {
   };
 
   // REPLACE handleSubmit WITH REAL BACKEND INTEGRATION
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!validate()) return;
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    try {
-      // Check authentication
-      if (!isAuthenticated || !user) {
-        // Save job data and redirect to login
-        const postJobData = {
-          title: formData.title,
-          company: formData.company,
-          description: formData.description,
-          responsibilities: formData.responsibilities,
-          requirements: formData.requirements,
-          jobLocation: formData.location,
-          salary: formData.salary,
-          deadline: formData.applyBefore,
-          howtoapply: formData.howToApply,
-        };
+  try {
+    // Check authentication
+    if (!isAuthenticated || !user) {
+      // Save job data and redirect to login
+      const postJobData = {
+        title: formData.title,
+        company: formData.company,
+        description: formData.description,
+        responsibilities: formData.responsibilities,
+        requirements: formData.requirements,
+        jobLocation: formData.location,
+        salary: formData.salary,
+        deadline: formData.applyBefore,
+        howtoapply: formData.howToApply,
+        // Include location data if available
+        ...(userLocation && userLocation.latitude && {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          country: userLocation.country,
+          countryCode: userLocation.countryCode,
+          region: userLocation.region,
+          city: userLocation.city,
+          timezone: userLocation.timezone,
+        }),
+      };
 
-        localStorage.setItem("postJobData", JSON.stringify(postJobData));
-        return router.push("/recruiterauth?fromPostJob=true");
-      }
+      localStorage.setItem("postJobData", JSON.stringify(postJobData));
+      return router.push("/recruiterauth?fromPostJob=true");
+    }
 
-      // Dispatch job creation action
-      await dispatch(
-        newjob({
-          recruiter: user.id,
-          title: formData.title,
-          company: formData.company,
-          description: formData.description,
-          responsibilities: formData.responsibilities,
-          requirements: formData.requirements,
-          jobLocation: formData.location,
-          salary: formData.salary,
-          deadline: formData.applyBefore,
-          howtoapply: formData.howToApply,
-        })
-      ).unwrap();
-
-      // Success - clear form and show toast
-      setFormData({
-        title: "",
-        company: "",
-        location: "",
-        description: "",
-        responsibilities: "",
-        requirements: "",
-        salary: "",
-        country: "",
-        applyBefore: "",
-        howToApply: "",
-      });
-
-      // Clear draft
-      localStorage.removeItem('jobPostDraft');
-
+    // FIXED: Use the correct recruiter ID field
+    // Check what field contains the recruiter ID in your user object
+    const recruiterField = user.id;
+    
+    if (!recruiterField) {
       toast({
-        title: "Job Posted Successfully!",
-        description: "Your job posting has been published.",
-        variant: "success",
-        duration: 5000,
-      });
-
-      // Optionally redirect
-      // router.push("/jobs");
-
-    } catch (error: any) {
-      console.error("Error posting job:", error);
-      toast({
-        title: "Job Posting Failed",
-        description: error.message || "There was an error posting your job. Please try again.",
+        title: "Authentication Error",
+        description: "Unable to identify recruiter account. Please log in again.",
         variant: "destructive",
         duration: 5000,
       });
-    } finally {
-      setIsSubmitting(false);
+      return router.push("/recruiterauth");
     }
+
+    console.log('User object:', user); // Debug log
+    console.log('Using recruiter ID:', recruiterField); // Debug log
+
+    // Dispatch job creation action - location data will be added automatically in the thunk
+    await dispatch(
+      newjob({
+        recruiter: recruiterField, // Use the correct field
+        title: formData.title,
+        company: formData.company,
+        description: formData.description,
+        responsibilities: formData.responsibilities,
+        requirements: formData.requirements,
+        jobLocation: formData.location,
+        salary: formData.salary,
+        deadline: formData.applyBefore,
+        howtoapply: formData.howToApply,
+      })
+    ).unwrap();
+
+    // Success - clear form and show toast
+    setFormData({
+      title: "",
+      company: "",
+      location: "",
+      description: "",
+      responsibilities: "",
+      requirements: "",
+      salary: "",
+      country: "",
+      applyBefore: "",
+      howToApply: "",
+    });
+
+    localStorage.removeItem('jobPostDraft');
+
+    toast({
+      title: "Job Posted Successfully!",
+      description: "Your job posting has been published with location data.",
+      variant: "success",
+      duration: 5000,
+    });
+
+  } catch (error: any) {
+    console.error("Error posting job:", error);
+    toast({
+      title: "Job Posting Failed",
+      description: error.message || "There was an error posting your job. Please try again.",
+      variant: "destructive",
+      duration: 5000,
+    });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+const LocationStatus = () => {
+    const getCountryFlag = (countryCode: string) => {
+      if (!countryCode || countryCode === 'XX') return '🌍';
+      const flagEmojis: { [key: string]: string } = {
+        'IN': '🇮🇳', 'US': '🇺🇸', 'GB': '🇬🇧', 'CA': '🇨🇦', 'AU': '🇦🇺',
+        'DE': '🇩🇪', 'FR': '🇫🇷', 'JP': '🇯🇵', 'CN': '🇨🇳', 'BR': '🇧🇷',
+        'SG': '🇸🇬', 'NL': '🇳🇱', 'SE': '🇸🇪', 'NO': '🇳🇴', 'DK': '🇩🇰',
+      };
+      return flagEmojis[countryCode.toUpperCase()] || '🌍';
+    };
+
+    if (geoLoading) {
+      return (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-4">
+          <p className="text-blue-700 text-sm flex items-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent mr-2"></div>
+            Detecting your location for better job targeting...
+          </p>
+        </div>
+      );
+    }
+
+    if (locationDetected && userLocation && userLocation.latitude) {
+      return (
+        <div className="p-3 bg-green-50 border border-green-200 rounded-lg mb-4">
+          <p className="text-green-700 text-sm flex items-center">
+            <span className="mr-2">📍</span>
+            Location detected: {getCountryFlag(userLocation.countryCode)} {userLocation.city !== 'Unknown' ? userLocation.city : userLocation.region}, {userLocation.countryCode}
+          </p>
+          <p className="text-green-600 text-xs mt-1">
+            Your job will be automatically tagged with location data to help local candidates find it.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+        <p className="text-yellow-700 text-sm flex items-center">
+          <span className="mr-2">⚠️</span>
+          Location detection failed. Your job will still be posted but may have limited local visibility.
+        </p>
+      </div>
+    );
   };
 
   // REPLACE handleSave WITH REAL SAVE FUNCTIONALITY
